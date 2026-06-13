@@ -68,7 +68,12 @@ export const orders = pgTable(
       .notNull()
       .references(() => users.id),
     total: numeric('total', { precision: 12, scale: 2, mode: 'number' }).notNull(),
-    status: orderStatus('status').notNull().default('pending_payment'),
+    status: orderStatus('status').notNull().default('paid'),
+    shippingAddressLine1: varchar('shipping_address_line1', { length: 255 }).notNull(),
+    shippingAddressLine2: varchar('shipping_address_line2', { length: 255 }),
+    shippingCity: varchar('shipping_city', { length: 120 }).notNull(),
+    shippingPostalCode: varchar('shipping_postal_code', { length: 32 }).notNull(),
+    shippingCountry: varchar('shipping_country', { length: 120 }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('orders_user_id_idx').on(table.userId)],

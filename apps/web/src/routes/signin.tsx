@@ -1,12 +1,20 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router';
 import { LogIn } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Field, Input } from '../components/ui/Input';
 import { useSignin } from '../hooks/useSignin';
+import { getCurrentUser, isAdmin } from '../lib/auth';
 
 export const Route = createFileRoute('/signin')({
+  beforeLoad: () => {
+    const user = getCurrentUser();
+
+    if (user && isAdmin(user)) {
+      throw redirect({ to: '/admin' });
+    }
+  },
   component: SigninPage,
 });
 

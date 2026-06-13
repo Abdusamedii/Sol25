@@ -18,13 +18,15 @@ export const Navbar = memo(function Navbar() {
 
   async function handleSignOut() {
     setAuthSession(null, null);
-    await navigate({ to: '/' });
+    await navigate({ to: '/signin' });
   }
+
+  const homeTo = currentUser?.role === 'admin' ? '/admin' : '/';
 
   return (
     <header className="sticky top-0 z-50 bg-background">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="group flex items-center gap-3 transition-transform duration-200 hover:scale-105">
+        <Link to={homeTo} className="group flex items-center gap-3 transition-transform duration-200 hover:scale-105">
           <span className="flex h-12 w-12 items-center justify-center rounded-md bg-primary text-white">
             <Package className="h-6 w-6" strokeWidth={2.5} />
           </span>
@@ -35,28 +37,32 @@ export const Navbar = memo(function Navbar() {
         </Link>
 
         <nav className="flex items-center gap-1 sm:gap-2">
-          <Link
-            to="/"
-            activeProps={{ className: navLinkActive }}
-            inactiveProps={{ className: navLinkInactive }}
-          >
-            <Package className="h-4 w-4" strokeWidth={2.5} />
-            <span className="hidden sm:inline">Products</span>
-          </Link>
+          {currentUser?.role !== 'admin' ? (
+            <>
+              <Link
+                to="/"
+                activeProps={{ className: navLinkActive }}
+                inactiveProps={{ className: navLinkInactive }}
+              >
+                <Package className="h-4 w-4" strokeWidth={2.5} />
+                <span className="hidden sm:inline">Products</span>
+              </Link>
 
-          <Link
-            to="/cart"
-            activeProps={{ className: navLinkActive }}
-            inactiveProps={{ className: navLinkInactive }}
-          >
-            <ShoppingCart className="h-4 w-4" strokeWidth={2.5} />
-            <span className="hidden sm:inline">Cart</span>
-            {itemCount > 0 ? (
-              <span className="flex h-6 min-w-6 items-center justify-center rounded-md bg-accent px-1.5 text-xs font-bold text-white">
-                {itemCount}
-              </span>
-            ) : null}
-          </Link>
+              <Link
+                to="/cart"
+                activeProps={{ className: navLinkActive }}
+                inactiveProps={{ className: navLinkInactive }}
+              >
+                <ShoppingCart className="h-4 w-4" strokeWidth={2.5} />
+                <span className="hidden sm:inline">Cart</span>
+                {itemCount > 0 ? (
+                  <span className="flex h-6 min-w-6 items-center justify-center rounded-md bg-accent px-1.5 text-xs font-bold text-white">
+                    {itemCount}
+                  </span>
+                ) : null}
+              </Link>
+            </>
+          ) : null}
 
           {currentUser?.role === 'admin' ? (
             <Link

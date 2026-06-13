@@ -41,6 +41,11 @@ export function AdminOrdersPanel() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {order.items.length} items · ${order.total.toFixed(2)}
               </p>
+              {order.shippingAddress.line1 ? (
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {order.shippingAddress.city}, {order.shippingAddress.country}
+                </p>
+              ) : null}
               <p className="mt-1 text-sm text-muted-foreground">
                 {new Date(order.createdAt).toLocaleString()}
               </p>

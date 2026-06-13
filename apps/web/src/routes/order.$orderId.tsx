@@ -103,6 +103,20 @@ function OrderConfirmationPage() {
       ) : null}
 
       <section className="rounded-lg bg-background p-6 sm:p-8">
+        <p className="mb-6 text-xs font-semibold tracking-wider text-muted-foreground uppercase">Shipping address</p>
+        {order.data.shippingAddress.line1 ? (
+          <p className="mb-6 font-semibold">
+            {order.data.shippingAddress.line1}
+            {order.data.shippingAddress.line2 ? `, ${order.data.shippingAddress.line2}` : ''}
+            <br />
+            {order.data.shippingAddress.postalCode} {order.data.shippingAddress.city}
+            <br />
+            {order.data.shippingAddress.country}
+          </p>
+        ) : (
+          <p className="mb-6 font-semibold text-muted-foreground">No shipping address recorded.</p>
+        )}
+
         <p className="mb-6 text-xs font-semibold tracking-wider text-muted-foreground uppercase">Line items</p>
         <div className="grid gap-3">
           {order.data.items.map((item, index) => {

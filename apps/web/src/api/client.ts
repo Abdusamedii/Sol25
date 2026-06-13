@@ -1,11 +1,9 @@
 import type {
   AuthResponse,
   CreateOrderInput,
-  CreatePaymentInput,
   CreateProductInput,
   Order,
   PaginatedProducts,
-  PayOrderResponse,
   Product,
   ProductListQueryInput,
   SigninInput,
@@ -21,17 +19,13 @@ type ApiErrorBody = {
   error?: {
     code?: string;
     message?: string;
-    details?: PayOrderResponse;
   };
 };
 
 export class PaymentDeclinedError extends Error {
-  readonly details: PayOrderResponse;
-
-  constructor(message: string, details: PayOrderResponse) {
+  constructor(message: string) {
     super(message);
     this.name = 'PaymentDeclinedError';
-    this.details = details;
   }
 }
 
@@ -122,32 +116,18 @@ export function deleteProduct(id: string) {
   });
 }
 
-export function createOrder(input: CreateOrderInput) {
-  return request<Order>('/orders', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-}
-
-export function fetchOrder(orderId: string) {
-  return request<Order>(`/orders/${orderId}`);
-}
-
-export async function payOrder(orderId: string, input: CreatePaymentInput) {
-  const response = await fetch(`${API_URL}/orders/${orderId}/payments`, {
+export async function createOrder(input: CreateOrderInput) {
+  const response = await fetch(`${API_URL}/orders`, {
     method: 'POST',
     headers: authHeaders(),
     body: JSON.stringify(input),
   });
 
-  const body = (await response.json().catch(() => ({}))) as PayOrderResponse | ApiErrorBody;
+  const body = (await response.json().catch(() => ({}))) as Order | ApiErrorBody;
 
   if (response.status === 402) {
     const errorBody = body as ApiErrorBody;
-
-    if (errorBody.error?.details) {
-      throw new PaymentDeclinedError(errorBody.error.message ?? 'Payment declined', errorBody.error.details);
-    }
+    throw new PaymentDeclinedError(errorBody.error?.message ?? 'Payment declined');
   }
 
   if (!response.ok) {
@@ -155,7 +135,11 @@ export async function payOrder(orderId: string, input: CreatePaymentInput) {
     throw new Error(errorBody.error?.message ?? 'Request failed');
   }
 
-  return body as PayOrderResponse;
+  return body as Order;
+}
+
+export function fetchOrder(orderId: string) {
+  return request<Order>(`/orders/${orderId}`);
 }
 
 export function signin(input: SigninInput) {

@@ -1,7 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { CartView } from '../components/CartView';
+import { getCurrentUser, isAdmin } from '../lib/auth';
 
 export const Route = createFileRoute('/cart')({
+  beforeLoad: () => {
+    if (isAdmin(getCurrentUser())) {
+      throw redirect({ to: '/admin' });
+    }
+  },
   component: CartPage,
 });
 

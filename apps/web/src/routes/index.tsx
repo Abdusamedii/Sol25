@@ -1,11 +1,17 @@
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { productListQuerySchema } from '@sol25/shared';
 import type { ProductListQueryInput } from '@sol25/shared';
-import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ProductFilters, ProductSearch } from '../components/ProductFilters';
 import { ProductResults } from '../components/ProductResults';
+import { getCurrentUser, isAdmin } from '../lib/auth';
 
 export const Route = createFileRoute('/')({
+  beforeLoad: () => {
+    if (isAdmin(getCurrentUser())) {
+      throw redirect({ to: '/admin' });
+    }
+  },
   validateSearch: productListQuerySchema,
   component: ProductListPage,
 });

@@ -1,11 +1,10 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { CreditCard, Minus, Plus, ShoppingBag, Trash2, AlertCircle } from 'lucide-react';
+import { CreditCard, MapPin, Minus, Plus, ShoppingBag, Trash2, AlertCircle } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PaymentDeclinedError } from '../api/client';
 import { useCreateOrder } from '../hooks/useCreateOrder';
 import { useCart } from '../hooks/useCart';
 import { useCurrentUser } from '../hooks/useCurrentUser';
-import { usePayOrder } from '../hooks/usePayOrder';
 import {
   clearCart,
   getCartTotal,
@@ -13,23 +12,46 @@ import {
   updateCartItemQuantity,
 } from '../lib/cart';
 import { Button } from './ui/Button';
-import { Input } from './ui/Input';
+import { Field, Input } from './ui/Input';
+
+type CheckoutFormState = {
+  line1: string;
+  line2: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  cardNumber: string;
+};
+
+const emptyCheckoutForm: CheckoutFormState = {
+  line1: '',
+  line2: '',
+  city: '',
+  postalCode: '',
+  country: '',
+  cardNumber: '',
+};
 
 export function CartView() {
   const cart = useCart();
   const currentUser = useCurrentUser();
   const createOrder = useCreateOrder();
-  const payOrder = usePayOrder();
   const navigate = useNavigate();
-  const [cardNumber, setCardNumber] = useState('');
+  const [checkoutForm, setCheckoutForm] = useState<CheckoutFormState>(emptyCheckoutForm);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [paymentFailed, setPaymentFailed] = useState(false);
   const total = useMemo(() => getCartTotal(cart), [cart]);
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const isCheckingOut = createOrder.isPending || payOrder.isPending;
 
-  async function handleCheckout() {
-    if (!currentUser || cart.length === 0 || !cardNumber.trim()) {
+  const isCheckoutReady =
+    checkoutForm.line1.trim() &&
+    checkoutForm.city.trim() &&
+    checkoutForm.postalCode.trim() &&
+    checkoutForm.country.trim() &&
+    checkoutForm.cardNumber.trim();
+
+  async function handleCreateOrder() {
+    if (!currentUser || cart.length === 0 || !isCheckoutReady) {
       return;
     }
 
@@ -42,26 +64,27 @@ export function CartView() {
           productId: item.productId,
           quantity: item.quantity,
         })),
+        shippingAddress: {
+          line1: checkoutForm.line1.trim(),
+          line2: checkoutForm.line2.trim() || undefined,
+          city: checkoutForm.city.trim(),
+          postalCode: checkoutForm.postalCode.trim(),
+          country: checkoutForm.country.trim(),
+        },
+        cardNumber: checkoutForm.cardNumber,
       });
 
-      try {
-        await payOrder.mutateAsync({ orderId: order.id, cardNumber });
-      } catch (error) {
-        if (error instanceof PaymentDeclinedError) {
-          setPaymentFailed(true);
-          setCheckoutError(
-            error.details.payment.failureReason ?? 'Payment declined. Your items are still in the cart.',
-          );
-          return;
-        }
-
-        throw error;
-      }
-
       clearCart();
+      setCheckoutForm(emptyCheckoutForm);
       await navigate({ to: '/order/$orderId', params: { orderId: order.id } });
     } catch (error) {
-      setCheckoutError(error instanceof Error ? error.message : 'Checkout failed');
+      if (error instanceof PaymentDeclinedError) {
+        setPaymentFailed(true);
+        setCheckoutError(error.message);
+        return;
+      }
+
+      setCheckoutError(error instanceof Error ? error.message : 'Order creation failed');
     }
   }
 
@@ -168,6 +191,89 @@ export function CartView() {
             ))}
           </ul>
         </div>
+
+        {currentUser ? (
+          <div className="rounded-lg bg-background p-6 sm:p-8">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-md bg-muted text-primary">
+                <MapPin className="h-5 w-5" strokeWidth={2.5} />
+              </span>
+              <div>
+                <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Checkout</p>
+                <h2 className="text-2xl font-extrabold tracking-tight">Create order</h2>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Address line 1" className="sm:col-span-2">
+                <Input
+                  required
+                  value={checkoutForm.line1}
+                  onChange={(event) => setCheckoutForm({ ...checkoutForm, line1: event.target.value })}
+                />
+              </Field>
+              <Field label="Address line 2" className="sm:col-span-2">
+                <Input
+                  value={checkoutForm.line2}
+                  onChange={(event) => setCheckoutForm({ ...checkoutForm, line2: event.target.value })}
+                />
+              </Field>
+              <Field label="City">
+                <Input
+                  required
+                  value={checkoutForm.city}
+                  onChange={(event) => setCheckoutForm({ ...checkoutForm, city: event.target.value })}
+                />
+              </Field>
+              <Field label="Postal code">
+                <Input
+                  required
+                  value={checkoutForm.postalCode}
+                  onChange={(event) => setCheckoutForm({ ...checkoutForm, postalCode: event.target.value })}
+                />
+              </Field>
+              <Field label="Country" className="sm:col-span-2">
+                <Input
+                  required
+                  value={checkoutForm.country}
+                  onChange={(event) => setCheckoutForm({ ...checkoutForm, country: event.target.value })}
+                />
+              </Field>
+              <Field label="Test card number" className="sm:col-span-2">
+                <div className="relative">
+                  <CreditCard className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="pl-12"
+                    placeholder="1111 1111 1111 1111"
+                    value={checkoutForm.cardNumber}
+                    onChange={(event) => {
+                      setCheckoutForm({ ...checkoutForm, cardNumber: event.target.value });
+                      setPaymentFailed(false);
+                      setCheckoutError(null);
+                    }}
+                  />
+                </div>
+              </Field>
+            </div>
+
+            <p className="mt-4 text-sm text-muted-foreground">
+              Use 1111 1111 1111 1111 to pay successfully or 4444 4444 4444 4444 to simulate a decline.
+            </p>
+
+            <button
+              type="button"
+              disabled={createOrder.isPending || !isCheckoutReady}
+              onClick={() => void handleCreateOrder()}
+              className="mt-6 inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-md bg-primary text-base font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 sm:w-auto sm:px-8"
+            >
+              {createOrder.isPending ? 'Creating order...' : 'Create order'}
+            </button>
+
+            {checkoutError && !paymentFailed ? (
+              <p className="mt-4 rounded-md bg-muted p-3 text-sm font-semibold text-error">{checkoutError}</p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <aside className="h-fit rounded-lg bg-primary p-6 sm:p-8 lg:sticky lg:top-28">
@@ -185,7 +291,7 @@ export function CartView() {
           ))}
         </div>
 
-        <div className="mb-6 flex items-end justify-between gap-4 border-t-2 border-white/20 pt-6">
+        <div className="flex items-end justify-between gap-4 border-t-2 border-white/20 pt-6">
           <span className="text-sm font-semibold tracking-wider text-white/70 uppercase">Total</span>
           <span className="text-4xl font-extrabold tracking-tight text-white">${total.toFixed(2)}</span>
         </div>
@@ -193,45 +299,15 @@ export function CartView() {
         {!currentUser ? (
           <Link
             to="/signin"
-            className="inline-flex h-14 w-full items-center justify-center rounded-md bg-white text-base font-semibold text-primary transition-all duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
+            className="mt-6 inline-flex h-14 w-full items-center justify-center rounded-md bg-white text-base font-semibold text-primary transition-all duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
           >
-            Sign in to checkout
+            Sign in to create order
           </Link>
         ) : (
-          <div className="grid gap-4">
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold tracking-wider text-white/70 uppercase">Test card number</span>
-              <div className="relative">
-                <CreditCard className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="bg-white pl-12"
-                  placeholder="1111 1111 1111 1111"
-                  value={cardNumber}
-                  onChange={(event) => {
-                    setCardNumber(event.target.value);
-                    setPaymentFailed(false);
-                    setCheckoutError(null);
-                  }}
-                />
-              </div>
-            </label>
-            <p className="text-xs text-white/70">
-              Use 1111 1111 1111 1111 to pay successfully or 4444 4444 4444 4444 to simulate a decline.
-            </p>
-            <button
-              type="button"
-              disabled={isCheckingOut || !cardNumber.trim()}
-              onClick={() => void handleCheckout()}
-              className="inline-flex h-14 w-full cursor-pointer items-center justify-center rounded-md bg-white text-base font-semibold text-primary transition-all duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-            >
-              {isCheckingOut ? 'Processing payment...' : 'Pay & checkout'}
-            </button>
-          </div>
+          <p className="mt-6 text-sm text-white/70">
+            Fill in your shipping address and payment details, then create your order.
+          </p>
         )}
-
-        {checkoutError && !paymentFailed ? (
-          <p className="mt-4 rounded-md bg-white/10 p-3 text-sm text-white">{checkoutError}</p>
-        ) : null}
       </aside>
     </div>
   );

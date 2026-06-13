@@ -4,6 +4,22 @@ export const orderStatusSchema = z.enum(['pending_payment', 'paid', 'payment_fai
 
 export const paymentStatusSchema = z.enum(['pending', 'succeeded', 'failed']);
 
+export const shippingAddressInputSchema = z.object({
+  line1: z.string().trim().min(1).max(255),
+  line2: z.string().trim().max(255).optional(),
+  city: z.string().trim().min(1).max(120),
+  postalCode: z.string().trim().min(1).max(32),
+  country: z.string().trim().min(1).max(120),
+});
+
+export const shippingAddressSchema = z.object({
+  line1: z.string(),
+  line2: z.string().optional(),
+  city: z.string(),
+  postalCode: z.string(),
+  country: z.string(),
+});
+
 export const createOrderItemSchema = z.object({
   productId: z.string().uuid(),
   quantity: z.number().int().positive(),
@@ -11,6 +27,8 @@ export const createOrderItemSchema = z.object({
 
 export const createOrderSchema = z.object({
   items: z.array(createOrderItemSchema).min(1),
+  shippingAddress: shippingAddressInputSchema,
+  cardNumber: z.string().min(1),
 });
 
 export const createPaymentSchema = z.object({
@@ -45,6 +63,7 @@ export const orderSchema = z.object({
   userId: z.string().uuid(),
   total: z.coerce.number().nonnegative(),
   status: orderStatusSchema,
+  shippingAddress: shippingAddressSchema,
   createdAt: z.string().datetime(),
   items: z.array(orderItemSchema),
   payment: paymentSchema.optional(),
@@ -61,6 +80,7 @@ export const payOrderResponseSchema = z.object({
 
 export type OrderStatus = z.infer<typeof orderStatusSchema>;
 export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+export type ShippingAddress = z.infer<typeof shippingAddressSchema>;
 export type CreateOrderItemInput = z.infer<typeof createOrderItemSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;

@@ -1,4 +1,4 @@
-import type { CreateOrderInput, CreatePaymentInput, Order, Payment, PayOrderResponse } from '@sol25/shared';
+import type { CreateOrderInput, Order, Payment } from '@sol25/shared';
 import { eq, inArray } from 'drizzle-orm';
 import type { Database } from '../../db/index.js';
 import { orderItems, orders, payments, products, users } from '../../db/schema.js';
@@ -23,6 +23,16 @@ function evaluateTestCard(cardNumber: string) {
   }
 
   return 'invalid' as const;
+}
+
+function toShippingAddress(row: OrderWithItemsRow) {
+  return {
+    line1: row.shippingAddressLine1,
+    line2: row.shippingAddressLine2?.trim() || undefined,
+    city: row.shippingCity,
+    postalCode: row.shippingPostalCode,
+    country: row.shippingCountry,
+  };
 }
 
 function toPayment(row: OrderWithItemsRow): Payment | undefined {
@@ -55,6 +65,7 @@ function toOrders(rows: OrderWithItemsRow[]): Order[] {
         userId: row.userId,
         total: row.total,
         status: row.status,
+        shippingAddress: toShippingAddress(row),
         createdAt: row.createdAt.toISOString(),
         items: [],
         payment: toPayment(row),
@@ -105,6 +116,19 @@ export class OrdersService {
   }
 
   async create(userId: string, input: CreateOrderInput) {
+    const normalizedCard = normalizeCardNumber(input.cardNumber);
+    const cardResult = evaluateTestCard(normalizedCard);
+
+    if (cardResult === 'invalid') {
+      throw new BadRequestError('Invalid test card number');
+    }
+
+    if (cardResult === 'declined') {
+      throw new PaymentDeclinedError('Payment declined');
+    }
+
+    const cardLast4 = normalizedCard.slice(-4);
+    const now = new Date();
     const requestedByProductId = new Map<string, number>();
 
     for (const item of input.items) {
@@ -147,12 +171,29 @@ export class OrdersService {
 
       const orderTotal = Number(total.toFixed(2));
 
+      for (const product of lockedProducts) {
+        const requestedQuantity = requestedByProductId.get(product.id) ?? 0;
+
+        await tx
+          .update(products)
+          .set({
+            stockQuantity: product.stockQuantity - requestedQuantity,
+            updatedAt: now,
+          })
+          .where(eq(products.id, product.id));
+      }
+
       const [order] = await tx
         .insert(orders)
         .values({
           userId,
           total: orderTotal,
-          status: 'pending_payment',
+          status: 'paid',
+          shippingAddressLine1: input.shippingAddress.line1,
+          shippingAddressLine2: input.shippingAddress.line2,
+          shippingCity: input.shippingAddress.city,
+          shippingPostalCode: input.shippingAddress.postalCode,
+          shippingCountry: input.shippingAddress.country,
         })
         .returning();
 
@@ -172,7 +213,11 @@ export class OrdersService {
       await tx.insert(payments).values({
         orderId: order.id,
         amount: orderTotal,
-        status: 'pending',
+        status: 'succeeded',
+        cardLast4,
+        failureReason: null,
+        updatedAt: now,
+        paidAt: now,
       });
 
       const rows = await tx
@@ -181,6 +226,11 @@ export class OrdersService {
           userId: orders.userId,
           total: orders.total,
           status: orders.status,
+          shippingAddressLine1: orders.shippingAddressLine1,
+          shippingAddressLine2: orders.shippingAddressLine2,
+          shippingCity: orders.shippingCity,
+          shippingPostalCode: orders.shippingPostalCode,
+          shippingCountry: orders.shippingCountry,
           createdAt: orders.createdAt,
           itemId: orderItems.id,
           productId: products.id,
@@ -211,232 +261,6 @@ export class OrdersService {
       }
 
       return createdOrder;
-    });
-  }
-
-  async processPayment(orderId: string, input: CreatePaymentInput): Promise<PayOrderResponse> {
-    const normalizedCard = normalizeCardNumber(input.cardNumber);
-    const cardResult = evaluateTestCard(normalizedCard);
-
-    if (cardResult === 'invalid') {
-      throw new BadRequestError('Invalid test card number');
-    }
-
-    const cardLast4 = normalizedCard.slice(-4);
-    const now = new Date();
-
-    if (cardResult === 'declined') {
-      return this.db.transaction(async (tx) => {
-        const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
-
-        if (!order) {
-          throw new NotFoundError('Order not found');
-        }
-
-        if (order.status !== 'pending_payment') {
-          throw new ConflictError('Order is not awaiting payment');
-        }
-
-        const [payment] = await tx.select().from(payments).where(eq(payments.orderId, orderId)).for('update');
-
-        if (!payment) {
-          throw new NotFoundError('Payment not found');
-        }
-
-        if (payment.status !== 'pending') {
-          throw new ConflictError('Payment has already been processed');
-        }
-
-        await tx
-          .update(orders)
-          .set({ status: 'payment_failed' })
-          .where(eq(orders.id, orderId));
-
-        const [updatedPayment] = await tx
-          .update(payments)
-          .set({
-            status: 'failed',
-            cardLast4,
-            failureReason: 'Payment declined',
-            updatedAt: now,
-          })
-          .where(eq(payments.id, payment.id))
-          .returning();
-
-        const rows = await tx
-          .select({
-            orderId: orders.id,
-            userId: orders.userId,
-            total: orders.total,
-            status: orders.status,
-            createdAt: orders.createdAt,
-            itemId: orderItems.id,
-            productId: products.id,
-            productName: products.name,
-            productSku: products.sku,
-            quantity: orderItems.quantity,
-            unitPrice: orderItems.unitPrice,
-            paymentId: payments.id,
-            paymentAmount: payments.amount,
-            paymentStatus: payments.status,
-            cardLast4: payments.cardLast4,
-            failureReason: payments.failureReason,
-            paymentCreatedAt: payments.createdAt,
-            paymentUpdatedAt: payments.updatedAt,
-            paidAt: payments.paidAt,
-          })
-          .from(orders)
-          .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
-          .innerJoin(products, eq(products.id, orderItems.productId))
-          .leftJoin(payments, eq(payments.orderId, orders.id))
-          .where(eq(orders.id, orderId))
-          .orderBy(orderItems.id);
-
-        const [updatedOrder] = toOrders(rows);
-
-        if (!updatedOrder || !updatedPayment) {
-          throw new Error('Payment update failed');
-        }
-
-        throw new PaymentDeclinedError('Payment declined', {
-          order: updatedOrder,
-          payment: {
-            id: updatedPayment.id,
-            orderId: updatedPayment.orderId,
-            amount: updatedPayment.amount,
-            status: updatedPayment.status,
-            cardLast4: updatedPayment.cardLast4,
-            failureReason: updatedPayment.failureReason,
-            createdAt: updatedPayment.createdAt.toISOString(),
-            updatedAt: updatedPayment.updatedAt.toISOString(),
-            paidAt: updatedPayment.paidAt ? updatedPayment.paidAt.toISOString() : null,
-          },
-        });
-      });
-    }
-
-    return this.db.transaction(async (tx) => {
-      const [order] = await tx.select().from(orders).where(eq(orders.id, orderId)).for('update');
-
-      if (!order) {
-        throw new NotFoundError('Order not found');
-      }
-
-      if (order.status !== 'pending_payment') {
-        throw new ConflictError('Order is not awaiting payment');
-      }
-
-      const [payment] = await tx.select().from(payments).where(eq(payments.orderId, orderId)).for('update');
-
-      if (!payment) {
-        throw new NotFoundError('Payment not found');
-      }
-
-      if (payment.status !== 'pending') {
-        throw new ConflictError('Payment has already been processed');
-      }
-
-      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, orderId));
-      const productIds = items.map((item) => item.productId);
-      const lockedProducts = await tx.select().from(products).where(inArray(products.id, productIds)).for('update');
-      const productsById = new Map(lockedProducts.map((product) => [product.id, product]));
-
-      for (const item of items) {
-        const product = productsById.get(item.productId);
-
-        if (!product) {
-          throw new NotFoundError('One or more products were not found');
-        }
-
-        if (product.stockQuantity < item.quantity) {
-          throw new ConflictError('Insufficient stock', {
-            productId: product.id,
-            sku: product.sku,
-            requestedQuantity: item.quantity,
-            availableQuantity: product.stockQuantity,
-          });
-        }
-      }
-
-      for (const item of items) {
-        const product = productsById.get(item.productId);
-
-        if (!product) {
-          continue;
-        }
-
-        await tx
-          .update(products)
-          .set({
-            stockQuantity: product.stockQuantity - item.quantity,
-            updatedAt: now,
-          })
-          .where(eq(products.id, product.id));
-      }
-
-      await tx.update(orders).set({ status: 'paid' }).where(eq(orders.id, orderId));
-
-      const [updatedPayment] = await tx
-        .update(payments)
-        .set({
-          status: 'succeeded',
-          cardLast4,
-          failureReason: null,
-          updatedAt: now,
-          paidAt: now,
-        })
-        .where(eq(payments.id, payment.id))
-        .returning();
-
-      const rows = await tx
-        .select({
-          orderId: orders.id,
-          userId: orders.userId,
-          total: orders.total,
-          status: orders.status,
-          createdAt: orders.createdAt,
-          itemId: orderItems.id,
-          productId: products.id,
-          productName: products.name,
-          productSku: products.sku,
-          quantity: orderItems.quantity,
-          unitPrice: orderItems.unitPrice,
-          paymentId: payments.id,
-          paymentAmount: payments.amount,
-          paymentStatus: payments.status,
-          cardLast4: payments.cardLast4,
-          failureReason: payments.failureReason,
-          paymentCreatedAt: payments.createdAt,
-          paymentUpdatedAt: payments.updatedAt,
-          paidAt: payments.paidAt,
-        })
-        .from(orders)
-        .innerJoin(orderItems, eq(orderItems.orderId, orders.id))
-        .innerJoin(products, eq(products.id, orderItems.productId))
-        .leftJoin(payments, eq(payments.orderId, orders.id))
-        .where(eq(orders.id, orderId))
-        .orderBy(orderItems.id);
-
-      const [updatedOrder] = toOrders(rows);
-
-      if (!updatedOrder || !updatedPayment) {
-        throw new Error('Payment update failed');
-      }
-
-      return {
-        order: updatedOrder,
-        payment: {
-          id: updatedPayment.id,
-          orderId: updatedPayment.orderId,
-          amount: updatedPayment.amount,
-          status: updatedPayment.status,
-          cardLast4: updatedPayment.cardLast4,
-          failureReason: updatedPayment.failureReason,
-          createdAt: updatedPayment.createdAt.toISOString(),
-          updatedAt: updatedPayment.updatedAt.toISOString(),
-          paidAt: updatedPayment.paidAt ? updatedPayment.paidAt.toISOString() : null,
-        },
-      };
     });
   }
 }

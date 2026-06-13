@@ -5,4 +5,5 @@ coverage
 .env.*
 !.env.example
 apps/web/src/routeTree.gen.ts
+*.tsbuildinfo
 .DS_Store

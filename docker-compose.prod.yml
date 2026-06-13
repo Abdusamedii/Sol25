@@ -15,6 +15,7 @@ services:
     restart: unless-stopped
 
   api:
+    image: ${API_IMAGE:-sol25-api:local}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -29,10 +30,11 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN}
       JWT_SECRET: ${JWT_SECRET}
     ports:
-      - '3000:3000'
+      - '0.0.0.0:3000:3000'
     restart: unless-stopped
 
   web:
+    image: ${WEB_IMAGE:-sol25-web:local}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -41,7 +43,7 @@ services:
     depends_on:
       - api
     ports:
-      - '80:80'
+      - '0.0.0.0:80:80'
     restart: unless-stopped
 
 volumes:

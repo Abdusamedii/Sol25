@@ -35,7 +35,45 @@ jobs:
             echo "ref=${{ github.event.workflow_run.head_branch }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Deploy docker compose stack
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.revision.outputs.sha }}
+
+      - name: Build API container
+        run: |
+          docker build \
+            -f apps/api/Dockerfile \
+            -t "sol25-api:${{ steps.revision.outputs.sha }}" \
+            .
+
+      - name: Build Web container
+        run: |
+          docker build \
+            -f apps/web/Dockerfile \
+            --build-arg "VITE_API_URL=http://${{ secrets.DEPLOY_PUBLIC_HOST }}:3000" \
+            -t "sol25-web:${{ steps.revision.outputs.sha }}" \
+            .
+
+      - name: Package containers for transfer
+        run: |
+          docker save \
+            "sol25-api:${{ steps.revision.outputs.sha }}" \
+            "sol25-web:${{ steps.revision.outputs.sha }}" \
+            | gzip -1 > /tmp/sol25-images.tar.gz
+          ls -lh /tmp/sol25-images.tar.gz
+
+      - name: Upload containers to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: /tmp/sol25-images.tar.gz
+          target: /tmp
+
+      - name: Load containers and start stack
         uses: appleboy/ssh-action@v1.2.0
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -44,27 +82,34 @@ jobs:
           REPO_URL: https://github.com/${{ github.repository }}.git
           GIT_REF: ${{ steps.revision.outputs.ref }}
           GIT_SHA: ${{ steps.revision.outputs.sha }}
+          API_IMAGE: sol25-api:${{ steps.revision.outputs.sha }}
+          WEB_IMAGE: sol25-web:${{ steps.revision.outputs.sha }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          command_timeout: 40m
-          envs: POSTGRES_PASSWORD,JWT_SECRET,DEPLOY_PUBLIC_HOST,REPO_URL,GIT_REF,GIT_SHA
+          command_timeout: 20m
+          envs: POSTGRES_PASSWORD,JWT_SECRET,DEPLOY_PUBLIC_HOST,REPO_URL,GIT_REF,GIT_SHA,API_IMAGE,WEB_IMAGE
           script: |
             set -euo pipefail
+
+            gunzip -c /tmp/sol25-images.tar.gz | docker load
+            rm -f /tmp/sol25-images.tar.gz
 
             APP_DIR="/opt/sol25"
             DEPLOY_SCRIPT="${APP_DIR}/scripts/deploy-remote.sh"
 
             run_deploy() {
               export APP_DIR REPO_URL GIT_REF GIT_SHA DEPLOY_PUBLIC_HOST POSTGRES_PASSWORD JWT_SECRET
+              export API_IMAGE WEB_IMAGE
               "$1"
             }
 
             if [[ -x "${DEPLOY_SCRIPT}" ]]; then
               run_deploy "${DEPLOY_SCRIPT}"
             else
+              mkdir -p "${APP_DIR}/scripts"
               curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${GIT_SHA}/scripts/deploy-remote.sh" -o /tmp/deploy-remote.sh
               chmod +x /tmp/deploy-remote.sh
               run_deploy /tmp/deploy-remote.sh
@@ -73,12 +118,12 @@ jobs:
       - name: Verify deployment
         run: |
           HOST="${{ secrets.DEPLOY_PUBLIC_HOST }}"
-          for i in $(seq 1 12); do
+          for i in $(seq 1 18); do
             if curl -fsS "http://${HOST}/" >/dev/null && curl -fsS "http://${HOST}:3000/health" >/dev/null; then
-              echo "Web and API are reachable."
+              echo "Web (port 80) and API (port 3000) are reachable."
               exit 0
             fi
-            echo "Waiting for services (${i}/12)..."
+            echo "Waiting for services (${i}/18)..."
             sleep 10
           done
           echo "Deployment verification failed."

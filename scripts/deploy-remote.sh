@@ -16,6 +16,24 @@ url_encode_password() {
   python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
 }
 
+set_env_value() {
+  local key="$1"
+  local value="$2"
+  python3 - "${APP_DIR}/.env.production" "$key" "$value" <<'PYEOF'
+import sys, re
+path, key, value = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(path) as f:
+    content = f.read()
+pattern = re.compile(r'^' + re.escape(key) + r'=.*', re.MULTILINE)
+if pattern.search(content):
+    content = pattern.sub(key + '=' + value, content)
+else:
+    content = content.rstrip('\n') + '\n' + key + '=' + value + '\n'
+with open(path, 'w') as f:
+    f.write(content)
+PYEOF
+}
+
 ensure_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     return
@@ -55,16 +73,16 @@ ensure_env_file() {
   local pg_pwd_encoded
   pg_pwd_encoded=$(url_encode_password "${POSTGRES_PASSWORD}")
 
-  printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"                                  > .env.production
-  printf 'DATABASE_URL=%s\n' "postgres://postgres:${pg_pwd_encoded}@db:5432/sol25"       >> .env.production
-  printf 'HOST=0.0.0.0\n'                                    >> .env.production
-  printf 'PORT=3000\n'                                        >> .env.production
-  printf 'NODE_ENV=production\n'                              >> .env.production
-  printf 'WEB_ORIGIN=%s\n' "${WEB_ORIGIN}"                   >> .env.production
-  printf 'VITE_API_URL=%s\n' "${VITE_API_URL}"               >> .env.production
-  printf 'JWT_SECRET=%s\n' "${JWT_SECRET}"                   >> .env.production
-  printf 'API_IMAGE=%s\n' "${API_IMAGE}"                     >> .env.production
-  printf 'WEB_IMAGE=%s\n' "${WEB_IMAGE}"                     >> .env.production
+  printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"                              > .env.production
+  printf 'DATABASE_URL=%s\n' "postgres://postgres:${pg_pwd_encoded}@db:5432/sol25"   >> .env.production
+  printf 'HOST=0.0.0.0\n'                                                             >> .env.production
+  printf 'PORT=3000\n'                                                                >> .env.production
+  printf 'NODE_ENV=production\n'                                                      >> .env.production
+  printf 'WEB_ORIGIN=%s\n' "${WEB_ORIGIN}"                                           >> .env.production
+  printf 'VITE_API_URL=%s\n' "${VITE_API_URL}"                                       >> .env.production
+  printf 'JWT_SECRET=%s\n' "${JWT_SECRET}"                                            >> .env.production
+  printf 'API_IMAGE=%s\n' "${API_IMAGE}"                                              >> .env.production
+  printf 'WEB_IMAGE=%s\n' "${WEB_IMAGE}"                                              >> .env.production
 
   chmod 600 .env.production
 }
@@ -76,23 +94,12 @@ update_env_file() {
     return
   fi
 
-  set_env_value() {
-    local key="$1"
-    local value="$2"
-    if grep -q "^${key}=" .env.production; then
-      sed -i "s|^${key}=.*|${key}=${value}|" .env.production
-    else
-      printf '%s=%s\n' "${key}" "${value}" >> .env.production
-    fi
-  }
-
   set_env_value WEB_ORIGIN "${WEB_ORIGIN}"
   set_env_value VITE_API_URL "${VITE_API_URL}"
 
   if [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
     local pg_pwd_encoded
     pg_pwd_encoded=$(url_encode_password "${POSTGRES_PASSWORD}")
-    set_env_value POSTGRES_PASSWORD "${POSTGRES_PASSWORD}"
     set_env_value DATABASE_URL "postgres://postgres:${pg_pwd_encoded}@db:5432/sol25"
   fi
 
@@ -143,7 +150,8 @@ seed_once() {
     echo "Seed complete."
   else
     echo "WARNING: seed failed — the app is still running but demo data was not inserted."
-    echo "You can seed manually: ssh root@${DEPLOY_PUBLIC_HOST} 'cd /opt/sol25 && docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --entrypoint node api apps/api/dist/db/seed.js && touch .seeded'"
+    echo "Retry manually once the deploy completes:"
+    echo "  ssh root@${DEPLOY_PUBLIC_HOST} 'cd /opt/sol25 && docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --entrypoint node api apps/api/dist/db/seed.js && touch .seeded'"
   fi
 }
 

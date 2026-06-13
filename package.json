@@ -1,0 +1,23 @@
+{
+  "name": "sol25-inventory-order-service",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "check": "pnpm -r check",
+    "dev": "pnpm --filter @sol25/shared build && pnpm --parallel --filter @sol25/api --filter @sol25/web dev",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:generate": "pnpm --filter @sol25/api db:generate",
+    "db:migrate": "pnpm --filter @sol25/api db:migrate",
+    "db:seed": "pnpm --filter @sol25/api db:seed",
+    "db:studio": "pnpm --filter @sol25/api db:studio"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

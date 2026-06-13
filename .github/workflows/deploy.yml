@@ -58,8 +58,8 @@ jobs:
           docker save \
             "sol25-api:${{ steps.revision.outputs.sha }}" \
             "sol25-web:${{ steps.revision.outputs.sha }}" \
-            | gzip -1 > /tmp/sol25-images.tar.gz
-          ls -lh /tmp/sol25-images.tar.gz
+            | gzip -1 > sol25-images.tar.gz
+          ls -lh sol25-images.tar.gz
 
       - name: Upload containers to server
         uses: appleboy/scp-action@v0.1.7
@@ -68,8 +68,10 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          source: /tmp/sol25-images.tar.gz
+          source: sol25-images.tar.gz
           target: /tmp
+          overwrite: true
+          command_timeout: 30m
 
       - name: Load containers and start stack
         uses: appleboy/ssh-action@v1.2.0

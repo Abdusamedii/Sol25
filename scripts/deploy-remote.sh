@@ -12,6 +12,10 @@ WEB_IMAGE="${WEB_IMAGE:-}"
 WEB_ORIGIN="http://${DEPLOY_PUBLIC_HOST}"
 VITE_API_URL="http://${DEPLOY_PUBLIC_HOST}:3000"
 
+url_encode_password() {
+  python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$1"
+}
+
 ensure_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     return
@@ -48,8 +52,11 @@ ensure_env_file() {
     exit 1
   fi
 
-  printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"     > .env.production
-  printf 'DATABASE_URL=%s\n' "postgres://postgres:${POSTGRES_PASSWORD}@db:5432/sol25" >> .env.production
+  local pg_pwd_encoded
+  pg_pwd_encoded=$(url_encode_password "${POSTGRES_PASSWORD}")
+
+  printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"                                  > .env.production
+  printf 'DATABASE_URL=%s\n' "postgres://postgres:${pg_pwd_encoded}@db:5432/sol25"       >> .env.production
   printf 'HOST=0.0.0.0\n'                                    >> .env.production
   printf 'PORT=3000\n'                                        >> .env.production
   printf 'NODE_ENV=production\n'                              >> .env.production
@@ -81,6 +88,13 @@ update_env_file() {
 
   set_env_value WEB_ORIGIN "${WEB_ORIGIN}"
   set_env_value VITE_API_URL "${VITE_API_URL}"
+
+  if [[ -n "${POSTGRES_PASSWORD:-}" ]]; then
+    local pg_pwd_encoded
+    pg_pwd_encoded=$(url_encode_password "${POSTGRES_PASSWORD}")
+    set_env_value POSTGRES_PASSWORD "${POSTGRES_PASSWORD}"
+    set_env_value DATABASE_URL "postgres://postgres:${pg_pwd_encoded}@db:5432/sol25"
+  fi
 
   if [[ -n "${JWT_SECRET:-}" ]]; then
     set_env_value JWT_SECRET "${JWT_SECRET}"

@@ -1,4 +1,5 @@
 import { faker } from '@faker-js/faker';
+import { fileURLToPath } from 'node:url';
 import { productCategories } from '@sol25/shared';
 import { hashPassword } from '../lib/password.js';
 import { createDatabase } from './index.js';
@@ -36,7 +37,7 @@ async function seedProducts(db: ReturnType<typeof createDatabase>['db'], client:
   }
 }
 
-async function seed() {
+export async function runSeed() {
   const { client, db } = createDatabase();
 
   try {
@@ -56,7 +57,9 @@ async function seed() {
   }
 }
 
-seed().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  runSeed().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

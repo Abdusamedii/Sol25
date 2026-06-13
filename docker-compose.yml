@@ -28,8 +28,13 @@ services:
       NODE_ENV: production
       PORT: 3000
       WEB_ORIGIN: http://localhost:5173
+      JWT_SECRET: sol25-docker-jwt-secret-change-me
     ports:
       - "3000:3000"
+    command: >
+      sh -c "node apps/api/dist/db/migrate.js &&
+             node apps/api/dist/db/seed-if-empty.js &&
+             node apps/api/dist/server.js"
 
   web:
     build:

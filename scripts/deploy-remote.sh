@@ -5,6 +5,7 @@ APP_DIR="${APP_DIR:-/opt/sol25}"
 REPO_URL="${REPO_URL:-https://github.com/Abdusamedii/Sol25.git}"
 DEPLOY_PUBLIC_HOST="${DEPLOY_PUBLIC_HOST:?DEPLOY_PUBLIC_HOST is required}"
 GIT_REF="${GIT_REF:-main}"
+GIT_SHA="${GIT_SHA:-}"
 
 WEB_ORIGIN="http://${DEPLOY_PUBLIC_HOST}"
 VITE_API_URL="http://${DEPLOY_PUBLIC_HOST}:3000"
@@ -26,7 +27,12 @@ ensure_repo() {
 
   cd "${APP_DIR}"
   git fetch origin "${GIT_REF}"
-  git reset --hard "origin/${GIT_REF}"
+
+  if [[ -n "${GIT_SHA}" ]]; then
+    git reset --hard "${GIT_SHA}"
+  else
+    git reset --hard "origin/${GIT_REF}"
+  fi
 }
 
 ensure_env_file() {

@@ -1,8 +1,10 @@
 import type {
   CreateOrderInput,
+  CreatePaymentInput,
   CreateProductInput,
   Order,
   PaginatedProducts,
+  PayOrderResponse,
   Product,
   ProductListQueryInput,
   SigninInput,
@@ -17,9 +19,19 @@ type ApiErrorBody = {
   error?: {
     code?: string;
     message?: string;
-    details?: unknown;
+    details?: PayOrderResponse;
   };
 };
+
+export class PaymentDeclinedError extends Error {
+  readonly details: PayOrderResponse;
+
+  constructor(message: string, details: PayOrderResponse) {
+    super(message);
+    this.name = 'PaymentDeclinedError';
+    this.details = details;
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -94,6 +106,33 @@ export function createOrder(input: CreateOrderInput) {
 
 export function fetchOrder(orderId: string) {
   return request<Order>(`/orders/${orderId}`);
+}
+
+export async function payOrder(orderId: string, input: CreatePaymentInput) {
+  const response = await fetch(`${API_URL}/orders/${orderId}/payments`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  const body = (await response.json().catch(() => ({}))) as PayOrderResponse | ApiErrorBody;
+
+  if (response.status === 402) {
+    const errorBody = body as ApiErrorBody;
+
+    if (errorBody.error?.details) {
+      throw new PaymentDeclinedError(errorBody.error.message ?? 'Payment declined', errorBody.error.details);
+    }
+  }
+
+  if (!response.ok) {
+    const errorBody = body as ApiErrorBody;
+    throw new Error(errorBody.error?.message ?? 'Request failed');
+  }
+
+  return body as PayOrderResponse;
 }
 
 export function signin(input: SigninInput) {

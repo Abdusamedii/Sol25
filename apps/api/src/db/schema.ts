@@ -15,6 +15,15 @@ import {
 
 export const userRole = pgEnum('user_role', ['admin', 'customer']);
 
+export const orderStatus = pgEnum('order_status', [
+  'pending_payment',
+  'paid',
+  'payment_failed',
+  'cancelled',
+]);
+
+export const paymentStatus = pgEnum('payment_status', ['pending', 'succeeded', 'failed']);
+
 export const users = pgTable(
   'users',
   {
@@ -59,10 +68,31 @@ export const orders = pgTable(
       .notNull()
       .references(() => users.id),
     total: numeric('total', { precision: 12, scale: 2, mode: 'number' }).notNull(),
-    status: varchar('status', { length: 32 }).notNull().default('placed'),
+    status: orderStatus('status').notNull().default('pending_payment'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index('orders_user_id_idx').on(table.userId)],
+);
+
+export const payments = pgTable(
+  'payments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => orders.id, { onDelete: 'cascade' }),
+    amount: numeric('amount', { precision: 12, scale: 2, mode: 'number' }).notNull(),
+    status: paymentStatus('status').notNull().default('pending'),
+    cardLast4: varchar('card_last4', { length: 4 }),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    paidAt: timestamp('paid_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('payments_order_id_idx').on(table.orderId),
+    check('payments_amount_positive', sql`${table.amount} > 0`),
+  ],
 );
 
 export const orderItems = pgTable(
@@ -96,9 +126,17 @@ export const productsRelations = relations(products, ({ many }) => ({
 
 export const ordersRelations = relations(orders, ({ many, one }) => ({
   items: many(orderItems),
+  payment: one(payments),
   user: one(users, {
     fields: [orders.userId],
     references: [users.id],
+  }),
+}));
+
+export const paymentsRelations = relations(payments, ({ one }) => ({
+  order: one(orders, {
+    fields: [payments.orderId],
+    references: [orders.id],
   }),
 }));
 
@@ -119,3 +157,5 @@ export type ProductRow = typeof products.$inferSelect;
 export type NewProductRow = typeof products.$inferInsert;
 export type OrderRow = typeof orders.$inferSelect;
 export type OrderItemRow = typeof orderItems.$inferSelect;
+export type PaymentRow = typeof payments.$inferSelect;
+export type NewPaymentRow = typeof payments.$inferInsert;

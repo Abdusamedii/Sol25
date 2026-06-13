@@ -31,6 +31,18 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+export class BadRequestError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super(400, 'BAD_REQUEST', message, details);
+  }
+}
+
+export class PaymentDeclinedError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super(402, 'PAYMENT_DECLINED', message, details);
+  }
+}
+
 export function formatError(error: FastifyError | AppError, request: FastifyRequest, reply: FastifyReply) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send({

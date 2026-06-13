@@ -19,9 +19,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    environment:
-      name: production
-      url: http://${{ secrets.DEPLOY_PUBLIC_HOST }}
+    environment: production
 
     steps:
       - name: Resolve deploy revision

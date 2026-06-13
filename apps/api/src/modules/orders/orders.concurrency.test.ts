@@ -78,9 +78,15 @@ async function countOrders(app: FastifyInstance) {
 }
 
 function expectConflict(result: OrderAttempt) {
-  expect(result.ok).toBe(false);
-  expect(result.error).toBeInstanceOf(ConflictError);
-  expect((result.error as ConflictError).message).toBe('Insufficient stock');
+  if (result.ok) {
+    expect.fail('Expected order to be rejected');
+  }
+
+  if (!(result.error instanceof ConflictError)) {
+    expect.fail('Expected ConflictError');
+  }
+
+  expect(result.error.message).toBe('Insufficient stock');
 }
 
 describe('orders concurrency', () => {

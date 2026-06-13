@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload deploy scripts
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          source: scripts/deploy-remote.sh
+          target: /tmp/sol25-deploy
+
+      - name: Deploy docker compose stack
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DEPLOY_PUBLIC_HOST: ${{ secrets.DEPLOY_PUBLIC_HOST }}
+          REPO_URL: https://github.com/${{ github.repository }}.git
+          GIT_REF: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || github.event.workflow_run.head_branch }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          command_timeout: 40m
+          envs: POSTGRES_PASSWORD,JWT_SECRET,DEPLOY_PUBLIC_HOST,REPO_URL,GIT_REF
+          script: |
+            chmod +x /tmp/sol25-deploy/scripts/deploy-remote.sh
+            /tmp/sol25-deploy/scripts/deploy-remote.sh

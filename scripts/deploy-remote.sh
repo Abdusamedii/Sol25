@@ -16,7 +16,6 @@ ensure_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     return
   fi
-
   curl -fsSL https://get.docker.com | sh
   systemctl enable --now docker
 }
@@ -49,18 +48,18 @@ ensure_env_file() {
     exit 1
   fi
 
-  cat > .env.production <<EOF
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/sol25
-HOST=0.0.0.0
-PORT=3000
-NODE_ENV=production
-WEB_ORIGIN=${WEB_ORIGIN}
-VITE_API_URL=${VITE_API_URL}
-JWT_SECRET=${JWT_SECRET}
-API_IMAGE=${API_IMAGE}
-WEB_IMAGE=${WEB_IMAGE}
-EOF
+  printf 'POSTGRES_PASSWORD=%s\n' "${POSTGRES_PASSWORD}"     > .env.production
+  printf 'DATABASE_URL=%s\n' "postgres://postgres:${POSTGRES_PASSWORD}@db:5432/sol25" >> .env.production
+  printf 'HOST=0.0.0.0\n'                                    >> .env.production
+  printf 'PORT=3000\n'                                        >> .env.production
+  printf 'NODE_ENV=production\n'                              >> .env.production
+  printf 'WEB_ORIGIN=%s\n' "${WEB_ORIGIN}"                   >> .env.production
+  printf 'VITE_API_URL=%s\n' "${VITE_API_URL}"               >> .env.production
+  printf 'JWT_SECRET=%s\n' "${JWT_SECRET}"                   >> .env.production
+  printf 'API_IMAGE=%s\n' "${API_IMAGE}"                     >> .env.production
+  printf 'WEB_IMAGE=%s\n' "${WEB_IMAGE}"                     >> .env.production
+
+  chmod 600 .env.production
 }
 
 update_env_file() {
@@ -76,12 +75,16 @@ update_env_file() {
     if grep -q "^${key}=" .env.production; then
       sed -i "s|^${key}=.*|${key}=${value}|" .env.production
     else
-      echo "${key}=${value}" >> .env.production
+      printf '%s=%s\n' "${key}" "${value}" >> .env.production
     fi
   }
 
   set_env_value WEB_ORIGIN "${WEB_ORIGIN}"
   set_env_value VITE_API_URL "${VITE_API_URL}"
+
+  if [[ -n "${JWT_SECRET:-}" ]]; then
+    set_env_value JWT_SECRET "${JWT_SECRET}"
+  fi
 
   if [[ -n "${API_IMAGE}" ]]; then
     set_env_value API_IMAGE "${API_IMAGE}"
@@ -95,14 +98,8 @@ update_env_file() {
 ensure_public_ports() {
   if command -v ufw >/dev/null 2>&1; then
     ufw allow OpenSSH >/dev/null 2>&1 || true
-    ufw allow 80/tcp >/dev/null 2>&1 || true
+    ufw allow 80/tcp  >/dev/null 2>&1 || true
     ufw allow 3000/tcp >/dev/null 2>&1 || true
-  fi
-}
-
-login_registry() {
-  if [[ -n "${API_IMAGE}" && "${API_IMAGE}" == ghcr.io/* && -n "${GITHUB_TOKEN:-}" ]]; then
-    echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${GITHUB_ACTOR:-github}" --password-stdin
   fi
 }
 
@@ -110,10 +107,6 @@ run_compose() {
   cd "${APP_DIR}"
 
   if [[ -n "${API_IMAGE}" && -n "${WEB_IMAGE}" ]]; then
-    if [[ "${API_IMAGE}" == ghcr.io/* ]]; then
-      login_registry
-      docker compose -f docker-compose.prod.yml --env-file .env.production pull api web
-    fi
     docker compose -f docker-compose.prod.yml --env-file .env.production up -d --remove-orphans --no-build
   else
     docker compose -f docker-compose.prod.yml --env-file .env.production up --build -d --remove-orphans
@@ -130,8 +123,14 @@ seed_once() {
   fi
 
   echo "Seeding database (first deploy only)..."
-  docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --entrypoint node api apps/api/dist/db/seed.js
-  touch .seeded
+  if docker compose -f docker-compose.prod.yml --env-file .env.production \
+      run --rm --entrypoint node api apps/api/dist/db/seed.js; then
+    touch .seeded
+    echo "Seed complete."
+  else
+    echo "WARNING: seed failed — the app is still running but demo data was not inserted."
+    echo "You can seed manually: ssh root@${DEPLOY_PUBLIC_HOST} 'cd /opt/sol25 && docker compose -f docker-compose.prod.yml --env-file .env.production run --rm --entrypoint node api apps/api/dist/db/seed.js && touch .seeded'"
+  fi
 }
 
 wait_for_api() {
@@ -143,7 +142,6 @@ wait_for_api() {
       echo "API is healthy."
       return
     fi
-
     echo "Waiting for API (${i}/${attempts})..."
     sleep "${delay}"
   done

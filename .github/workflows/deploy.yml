@@ -104,10 +104,21 @@ jobs:
         run: |
           scp -o BatchMode=yes sol25-images.tar.gz "${SSH_USER}@${SSH_HOST}:/tmp/sol25-images.tar.gz"
 
-      - name: Load containers and start stack
+      - name: Upload secrets file to server
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          # base64-encode each secret so special characters survive the file transfer
+          printf 'POSTGRES_PASSWORD_B64=%s\nJWT_SECRET_B64=%s\n' \
+            "$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w0)" \
+            "$(printf '%s' "$JWT_SECRET"         | base64 -w0)" \
+            > /tmp/sol25-secrets.env
+          scp -o BatchMode=yes /tmp/sol25-secrets.env "${SSH_USER}@${SSH_HOST}:/tmp/sol25-secrets.env"
+          rm -f /tmp/sol25-secrets.env
+
+      - name: Load containers and start stack
+        env:
           DEPLOY_PUBLIC_HOST: ${{ secrets.DEPLOY_PUBLIC_HOST }}
           GIT_REF: ${{ steps.revision.outputs.ref }}
           GIT_SHA: ${{ steps.revision.outputs.sha }}
@@ -117,8 +128,6 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           ssh -o BatchMode=yes "${SSH_USER}@${SSH_HOST}" \
-            POSTGRES_PASSWORD_B64="$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w0)" \
-            JWT_SECRET_B64="$(printf '%s' "$JWT_SECRET" | base64 -w0)" \
             DEPLOY_PUBLIC_HOST="$DEPLOY_PUBLIC_HOST" \
             REPO_URL="$REPO_URL" \
             GIT_REF="$GIT_REF" \
@@ -129,8 +138,13 @@ jobs:
             'bash -s' <<'REMOTE'
           set -euo pipefail
 
-          export POSTGRES_PASSWORD="$(printf '%s' "$POSTGRES_PASSWORD_B64" | base64 -d)"
-          export JWT_SECRET="$(printf '%s' "$JWT_SECRET_B64" | base64 -d)"
+          # decode secrets from file (avoids inline env-var SSH passing issues)
+          if [[ -f /tmp/sol25-secrets.env ]]; then
+            source /tmp/sol25-secrets.env
+            rm -f /tmp/sol25-secrets.env
+          fi
+          export POSTGRES_PASSWORD="$(printf '%s' "${POSTGRES_PASSWORD_B64:-}" | base64 -d)"
+          export JWT_SECRET="$(printf '%s' "${JWT_SECRET_B64:-}" | base64 -d)"
 
           gunzip -c /tmp/sol25-images.tar.gz | docker load
           rm -f /tmp/sol25-images.tar.gz
@@ -148,7 +162,8 @@ jobs:
             run_deploy "${DEPLOY_SCRIPT}"
           else
             mkdir -p "${APP_DIR}/scripts"
-            curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GIT_SHA}/scripts/deploy-remote.sh" -o /tmp/deploy-remote.sh
+            curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GIT_SHA}/scripts/deploy-remote.sh" \
+              -o /tmp/deploy-remote.sh
             chmod +x /tmp/deploy-remote.sh
             run_deploy /tmp/deploy-remote.sh
           fi

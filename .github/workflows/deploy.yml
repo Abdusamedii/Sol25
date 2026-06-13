@@ -21,6 +21,10 @@ jobs:
     timeout-minutes: 45
     environment: production
 
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+
     steps:
       - name: Resolve deploy revision
         id: revision
@@ -61,59 +65,94 @@ jobs:
             | gzip -1 > sol25-images.tar.gz
           ls -lh sol25-images.tar.gz
 
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_PASSPHRASE: ${{ secrets.SSH_PASSPHRASE }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+          if [ -n "${SSH_PASSPHRASE}" ]; then
+            PASSPHRASE="$(printf '%s' "$SSH_PASSPHRASE" | tr -d '\r')"
+            printf '#!/bin/sh\necho "%s"\n' "$PASSPHRASE" > /tmp/askpass.sh
+            chmod +x /tmp/askpass.sh
+            export SSH_ASKPASS=/tmp/askpass.sh
+            export SSH_ASKPASS_REQUIRE=force
+            export DISPLAY=:0
+          fi
+
+          if ! ssh-add ~/.ssh/deploy_key; then
+            echo "::error::Could not load SSH key."
+            echo "If your key has NO passphrase, delete the SSH_PASSPHRASE secret."
+            echo "If it has a passphrase, verify SSH_PRIVATE_KEY and SSH_PASSPHRASE."
+            echo "Recommended: run scripts/generate-deploy-key.sh and update GitHub secrets."
+            exit 1
+          fi
+
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Verify SSH connection
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=20 "${SSH_USER}@${SSH_HOST}" "echo SSH connection OK"
+
       - name: Upload containers to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          source: sol25-images.tar.gz
-          target: /tmp
-          overwrite: true
-          command_timeout: 30m
+        run: |
+          scp -o BatchMode=yes sol25-images.tar.gz "${SSH_USER}@${SSH_HOST}:/tmp/sol25-images.tar.gz"
 
       - name: Load containers and start stack
-        uses: appleboy/ssh-action@v1.2.0
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           DEPLOY_PUBLIC_HOST: ${{ secrets.DEPLOY_PUBLIC_HOST }}
-          REPO_URL: https://github.com/${{ github.repository }}.git
           GIT_REF: ${{ steps.revision.outputs.ref }}
           GIT_SHA: ${{ steps.revision.outputs.sha }}
           API_IMAGE: sol25-api:${{ steps.revision.outputs.sha }}
           WEB_IMAGE: sol25-web:${{ steps.revision.outputs.sha }}
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          command_timeout: 20m
-          envs: POSTGRES_PASSWORD,JWT_SECRET,DEPLOY_PUBLIC_HOST,REPO_URL,GIT_REF,GIT_SHA,API_IMAGE,WEB_IMAGE
-          script: |
-            set -euo pipefail
+          REPO_URL: https://github.com/${{ github.repository }}.git
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          ssh -o BatchMode=yes "${SSH_USER}@${SSH_HOST}" \
+            POSTGRES_PASSWORD_B64="$(printf '%s' "$POSTGRES_PASSWORD" | base64 -w0)" \
+            JWT_SECRET_B64="$(printf '%s' "$JWT_SECRET" | base64 -w0)" \
+            DEPLOY_PUBLIC_HOST="$DEPLOY_PUBLIC_HOST" \
+            REPO_URL="$REPO_URL" \
+            GIT_REF="$GIT_REF" \
+            GIT_SHA="$GIT_SHA" \
+            API_IMAGE="$API_IMAGE" \
+            WEB_IMAGE="$WEB_IMAGE" \
+            GITHUB_REPOSITORY="$GITHUB_REPOSITORY" \
+            'bash -s' <<'REMOTE'
+          set -euo pipefail
 
-            gunzip -c /tmp/sol25-images.tar.gz | docker load
-            rm -f /tmp/sol25-images.tar.gz
+          export POSTGRES_PASSWORD="$(printf '%s' "$POSTGRES_PASSWORD_B64" | base64 -d)"
+          export JWT_SECRET="$(printf '%s' "$JWT_SECRET_B64" | base64 -d)"
 
-            APP_DIR="/opt/sol25"
-            DEPLOY_SCRIPT="${APP_DIR}/scripts/deploy-remote.sh"
+          gunzip -c /tmp/sol25-images.tar.gz | docker load
+          rm -f /tmp/sol25-images.tar.gz
 
-            run_deploy() {
-              export APP_DIR REPO_URL GIT_REF GIT_SHA DEPLOY_PUBLIC_HOST POSTGRES_PASSWORD JWT_SECRET
-              export API_IMAGE WEB_IMAGE
-              "$1"
-            }
+          APP_DIR="/opt/sol25"
+          DEPLOY_SCRIPT="${APP_DIR}/scripts/deploy-remote.sh"
 
-            if [[ -x "${DEPLOY_SCRIPT}" ]]; then
-              run_deploy "${DEPLOY_SCRIPT}"
-            else
-              mkdir -p "${APP_DIR}/scripts"
-              curl -fsSL "https://raw.githubusercontent.com/${{ github.repository }}/${GIT_SHA}/scripts/deploy-remote.sh" -o /tmp/deploy-remote.sh
-              chmod +x /tmp/deploy-remote.sh
-              run_deploy /tmp/deploy-remote.sh
-            fi
+          run_deploy() {
+            export APP_DIR REPO_URL GIT_REF GIT_SHA DEPLOY_PUBLIC_HOST POSTGRES_PASSWORD JWT_SECRET
+            export API_IMAGE WEB_IMAGE
+            "$1"
+          }
+
+          if [[ -x "${DEPLOY_SCRIPT}" ]]; then
+            run_deploy "${DEPLOY_SCRIPT}"
+          else
+            mkdir -p "${APP_DIR}/scripts"
+            curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GIT_SHA}/scripts/deploy-remote.sh" -o /tmp/deploy-remote.sh
+            chmod +x /tmp/deploy-remote.sh
+            run_deploy /tmp/deploy-remote.sh
+          fi
+          REMOTE
 
       - name: Verify deployment
         run: |

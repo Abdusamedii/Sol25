@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { ProductsRepository } from './products.repository.js';
 import {
   createProductBodySchema,
+  productListQueryParamsSchema,
   productListResponseSchema,
   productParamsSchema,
   productResponseSchema,
@@ -16,12 +17,13 @@ export const productsRoutes: FastifyPluginAsyncZod = async (fastify) => {
     '/',
     {
       schema: {
+        querystring: productListQueryParamsSchema,
         response: {
           200: productListResponseSchema,
         },
       },
     },
-    async () => service.list(),
+    async (request) => service.list(request.query),
   );
 
   fastify.get(

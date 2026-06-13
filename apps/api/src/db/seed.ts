@@ -1,6 +1,40 @@
+import { faker } from '@faker-js/faker';
+import { productCategories } from '@sol25/shared';
 import { hashPassword } from '../lib/password.js';
 import { createDatabase } from './index.js';
 import { products, users } from './schema.js';
+
+const PRODUCT_COUNT = 10_000;
+const BATCH_SIZE = 500;
+
+function buildProduct(index: number) {
+  const price = Number(faker.commerce.price({ min: 1, max: 500, dec: 2 }));
+  const createdAt = new Date(Date.UTC(2020, 0, 1) + index);
+
+  return {
+    name: faker.commerce.productName(),
+    sku: `SKU-${String(index).padStart(6, '0')}`,
+    price,
+    stockQuantity: faker.number.int({ min: 0, max: 500 }),
+    category: faker.helpers.arrayElement(productCategories),
+    imageUrl: faker.image.url({ width: 640, height: 480 }),
+    createdAt,
+    updatedAt: createdAt,
+  };
+}
+
+async function seedProducts(db: ReturnType<typeof createDatabase>['db'], client: ReturnType<typeof createDatabase>['client']) {
+  await client`TRUNCATE order_items, products RESTART IDENTITY CASCADE`;
+
+  for (let offset = 1; offset <= PRODUCT_COUNT; offset += BATCH_SIZE) {
+    const batch = Array.from(
+      { length: Math.min(BATCH_SIZE, PRODUCT_COUNT - offset + 1) },
+      (_, batchIndex) => buildProduct(offset + batchIndex),
+    );
+
+    await db.insert(products).values(batch).onConflictDoNothing({ target: products.sku });
+  }
+}
 
 async function seed() {
   const { client, db } = createDatabase();
@@ -14,36 +48,8 @@ async function seed() {
       ])
       .onConflictDoNothing({ target: users.username });
 
-    await db
-      .insert(products)
-      .values([
-        {
-          name: 'Coffee Beans',
-          sku: 'COFFEE-1',
-          price: 12.5,
-          stockQuantity: 25,
-          category: 'Grocery',
-          imageUrl: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e',
-        },
-        {
-          name: 'Ceramic Mug',
-          sku: 'MUG-1',
-          price: 8,
-          stockQuantity: 40,
-          category: 'Kitchen',
-          imageUrl: 'https://images.unsplash.com/photo-1514228742587-6b1558fcca3d',
-        },
-        {
-          name: 'Notebook',
-          sku: 'NOTE-1',
-          price: 5.75,
-          stockQuantity: 60,
-          category: 'Stationery',
-          imageUrl: 'https://images.unsplash.com/photo-1531346878377-a5be20888e57',
-        },
-      ])
-      .onConflictDoNothing({ target: products.sku });
-
+    console.log(`Seeding ${PRODUCT_COUNT} products...`);
+    await seedProducts(db, client);
     console.log('Seed complete');
   } finally {
     await client.end();

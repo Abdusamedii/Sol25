@@ -1,64 +1,159 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
-import { useProducts } from '../hooks/useProducts';
+import { productListQuerySchema } from '@sol25/shared';
+import type { ProductListQueryInput } from '@sol25/shared';
+import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useMemo, useState } from 'react';
+import { ProductFilters } from '../components/ProductFilters';
+import { ProductResults } from '../components/ProductResults';
 
 export const Route = createFileRoute('/')({
+  validateSearch: productListQuerySchema,
   component: ProductListPage,
 });
 
 function ProductListPage() {
-  const products = useProducts();
+  const urlSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [searchInput, setSearchInput] = useState(urlSearch.q ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(urlSearch.q ?? '');
 
-  if (products.isPending) {
-    return <section className="panel">Loading products...</section>;
+  useEffect(() => {
+    setSearchInput(urlSearch.q ?? '');
+    setDebouncedQuery(urlSearch.q ?? '');
+  }, [urlSearch.q]);
+
+  useEffect(() => {
+    const trimmed = searchInput.trim();
+
+    if (trimmed === debouncedQuery) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setDebouncedQuery(trimmed);
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [searchInput, debouncedQuery]);
+
+  useEffect(() => {
+    const urlQuery = urlSearch.q ?? '';
+
+    if (debouncedQuery === urlQuery) {
+      return;
+    }
+
+    navigate({
+      search: {
+        page: 1,
+        limit: urlSearch.limit,
+        q: debouncedQuery || undefined,
+        category: urlSearch.category,
+        minPrice: urlSearch.minPrice,
+        maxPrice: urlSearch.maxPrice,
+        sortBy: urlSearch.sortBy,
+        sortOrder: urlSearch.sortOrder,
+      },
+      replace: true,
+      resetScroll: false,
+    });
+  }, [
+    debouncedQuery,
+    navigate,
+    urlSearch.q,
+    urlSearch.limit,
+    urlSearch.category,
+    urlSearch.minPrice,
+    urlSearch.maxPrice,
+    urlSearch.sortBy,
+    urlSearch.sortOrder,
+  ]);
+
+  const productQuery = useMemo(
+    (): ProductListQueryInput => ({
+      page: urlSearch.page,
+      limit: urlSearch.limit,
+      category: urlSearch.category,
+      minPrice: urlSearch.minPrice,
+      maxPrice: urlSearch.maxPrice,
+      sortBy: urlSearch.sortBy,
+      sortOrder: urlSearch.sortOrder,
+      q: debouncedQuery || undefined,
+    }),
+    [
+      debouncedQuery,
+      urlSearch.category,
+      urlSearch.limit,
+      urlSearch.maxPrice,
+      urlSearch.minPrice,
+      urlSearch.page,
+      urlSearch.sortBy,
+      urlSearch.sortOrder,
+    ],
+  );
+
+  function updateSearch(next: Partial<ProductListQueryInput>) {
+    navigate({
+      search: {
+        page: next.page ?? urlSearch.page,
+        limit: urlSearch.limit,
+        q: next.q !== undefined ? next.q : urlSearch.q,
+        category: next.category !== undefined ? next.category : urlSearch.category,
+        minPrice: next.minPrice !== undefined ? next.minPrice : urlSearch.minPrice,
+        maxPrice: next.maxPrice !== undefined ? next.maxPrice : urlSearch.maxPrice,
+        sortBy: next.sortBy ?? urlSearch.sortBy,
+        sortOrder: next.sortOrder ?? urlSearch.sortOrder,
+      },
+      replace: true,
+      resetScroll: false,
+    });
   }
 
-  if (products.isError) {
-    return <section className="panel error">{products.error.message}</section>;
+  function clearFilters() {
+    setSearchInput('');
+    setDebouncedQuery('');
+    navigate({
+      search: {
+        page: 1,
+        limit: urlSearch.limit,
+      },
+      replace: true,
+      resetScroll: false,
+    });
   }
+
+  const hasActiveFilters =
+    Boolean(debouncedQuery) ||
+    Boolean(urlSearch.category) ||
+    urlSearch.minPrice !== undefined ||
+    urlSearch.maxPrice !== undefined ||
+    urlSearch.sortBy !== 'createdAt' ||
+    urlSearch.sortOrder !== 'asc';
 
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Products</p>
-          <h2>Available stock</h2>
-        </div>
-        <Link to="/order" className="button">
-          Create order
-        </Link>
-      </div>
+    <div className="grid gap-8">
+      <section className="rounded-lg bg-background p-6 sm:p-8">
+        <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Catalog</p>
+        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Available stock</h1>
+        <p className="mt-2 max-w-xl text-muted-foreground">
+          Browse inventory, filter by category and price, and add items to your cart.
+        </p>
+      </section>
 
-      {products.data.length === 0 ? (
-        <div className="empty-state">No products yet. Add sample products through the API.</div>
-      ) : (
-        <div className="product-grid">
-          {products.data.map((product) => (
-            <article key={product.id} className="product-card">
-              {product.imageUrl ? (
-                <img className="product-image" src={product.imageUrl} alt={product.name} loading="lazy" />
-              ) : null}
-              <div>
-                <h3>{product.name}</h3>
-                <p>{product.sku}</p>
-              </div>
-              <dl>
-                <div>
-                  <dt>Category</dt>
-                  <dd>{product.category}</dd>
-                </div>
-                <div>
-                  <dt>Price</dt>
-                  <dd>${product.price.toFixed(2)}</dd>
-                </div>
-                <div>
-                  <dt>Stock</dt>
-                  <dd>{product.stockQuantity}</dd>
-                </div>
-              </dl>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
+      <ProductFilters
+        searchInput={searchInput}
+        urlSearch={urlSearch}
+        hasActiveFilters={hasActiveFilters}
+        onSearchChange={setSearchInput}
+        onUpdateSearch={updateSearch}
+        onClearFilters={clearFilters}
+      />
+
+      <ProductResults
+        hasActiveFilters={hasActiveFilters}
+        page={urlSearch.page}
+        query={productQuery}
+        onPageChange={(page) => updateSearch({ page })}
+      />
+    </div>
   );
 }

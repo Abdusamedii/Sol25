@@ -1,4 +1,4 @@
-import type { CreateProductInput, Product, UpdateProductInput } from '@sol25/shared';
+import type { CreateProductInput, PaginatedProducts, Product, ProductListQuery, UpdateProductInput } from '@sol25/shared';
 import type { ProductRow } from '../../db/schema.js';
 import { ConflictError, NotFoundError } from '../../lib/errors.js';
 import { ProductsRepository } from './products.repository.js';
@@ -20,9 +20,17 @@ function toProduct(row: ProductRow): Product {
 export class ProductsService {
   constructor(private readonly productsRepository: ProductsRepository) {}
 
-  async list() {
-    const rows = await this.productsRepository.list();
-    return rows.map(toProduct);
+  async list(query: ProductListQuery): Promise<PaginatedProducts> {
+    const { rows, total } = await this.productsRepository.listPaginated(query);
+    const totalPages = total === 0 ? 0 : Math.ceil(total / query.limit);
+
+    return {
+      data: rows.map(toProduct),
+      page: query.page,
+      limit: query.limit,
+      total,
+      totalPages,
+    };
   }
 
   async findById(id: string) {

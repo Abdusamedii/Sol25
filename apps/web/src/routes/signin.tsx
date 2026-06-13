@@ -1,6 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { LogIn } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
+import { Button } from '../components/ui/Button';
+import { Field, Input } from '../components/ui/Input';
 import { useSignin } from '../hooks/useSignin';
 
 export const Route = createFileRoute('/signin')({
@@ -20,46 +23,51 @@ function SigninPage() {
   }
 
   return (
-    <section className="panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Account</p>
-          <h2>Sign in</h2>
+    <div className="mx-auto grid max-w-lg gap-6">
+      <section className="rounded-lg bg-primary p-6 sm:p-8">
+        <div className="flex items-center gap-4">
+          <span className="flex h-14 w-14 items-center justify-center rounded-md bg-white text-primary">
+            <LogIn className="h-7 w-7" strokeWidth={2.5} />
+          </span>
+          <div>
+            <p className="text-xs font-semibold tracking-wider text-white/80 uppercase">Account</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-white">Sign in</h1>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <form className="order-form" onSubmit={handleSubmit}>
-        <label className="order-row">
-          <span>
-            <strong>Username</strong>
-          </span>
-          <input
-            autoComplete="username"
-            value={username}
-            onChange={(event) => setUsername(event.target.value)}
-          />
-        </label>
+      <section className="rounded-lg bg-background p-6 sm:p-8">
+        <form className="grid gap-6" onSubmit={handleSubmit}>
+          <Field label="Username">
+            <Input
+              autoComplete="username"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
+          </Field>
 
-        <label className="order-row">
-          <span>
-            <strong>Password</strong>
-          </span>
-          <input
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-          />
-        </label>
+          <Field label="Password">
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+          </Field>
 
-        {signin.isError ? <p className="error">{signin.error.message}</p> : null}
+          {signin.isError ? (
+            <p className="rounded-md bg-red-50 p-4 font-semibold text-error">{signin.error.message}</p>
+          ) : null}
 
-        <button className="button" disabled={!username || !password || signin.isPending} type="submit">
-          {signin.isPending ? 'Signing in...' : 'Sign in'}
-        </button>
+          <Button type="submit" disabled={!username || !password || signin.isPending} className="w-full">
+            {signin.isPending ? 'Signing in...' : 'Sign in'}
+          </Button>
 
-        <small>Seeded accounts: admin / admin and customer / customer</small>
-      </form>
-    </section>
+          <p className="text-center text-sm text-muted-foreground">
+            Seeded accounts: admin / admin and customer / customer
+          </p>
+        </form>
+      </section>
+    </div>
   );
 }

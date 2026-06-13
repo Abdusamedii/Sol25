@@ -2,7 +2,9 @@ import type {
   CreateOrderInput,
   CreateProductInput,
   Order,
+  PaginatedProducts,
   Product,
+  ProductListQueryInput,
   SigninInput,
   SignupInput,
   UpdateProductInput,
@@ -36,8 +38,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export function fetchProducts() {
-  return request<Product[]>('/products');
+export function fetchProducts(query: ProductListQueryInput) {
+  const params = new URLSearchParams({
+    page: String(query.page ?? 1),
+    limit: String(query.limit ?? 20),
+  });
+
+  if (query.q) {
+    params.set('q', query.q);
+  }
+
+  if (query.category) {
+    params.set('category', query.category);
+  }
+
+  if (query.minPrice !== undefined) {
+    params.set('minPrice', String(query.minPrice));
+  }
+
+  if (query.maxPrice !== undefined) {
+    params.set('maxPrice', String(query.maxPrice));
+  }
+
+  if (query.sortBy) {
+    params.set('sortBy', query.sortBy);
+  }
+
+  if (query.sortOrder) {
+    params.set('sortOrder', query.sortOrder);
+  }
+
+  return request<PaginatedProducts>(`/products?${params}`);
 }
 
 export function createProduct(input: CreateProductInput) {
@@ -59,6 +90,10 @@ export function createOrder(input: CreateOrderInput) {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function fetchOrder(orderId: string) {
+  return request<Order>(`/orders/${orderId}`);
 }
 
 export function signin(input: SigninInput) {

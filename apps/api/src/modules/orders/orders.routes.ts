@@ -1,6 +1,11 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { OrdersRepository } from './orders.repository.js';
-import { createOrderBodySchema, orderListResponseSchema, orderResponseSchema } from './orders.schema.js';
+import {
+  createOrderBodySchema,
+  orderListResponseSchema,
+  orderParamsSchema,
+  orderResponseSchema,
+} from './orders.schema.js';
 import { OrdersService } from './orders.service.js';
 
 export const ordersRoutes: FastifyPluginAsyncZod = async (fastify) => {
@@ -16,6 +21,19 @@ export const ordersRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async () => service.list(),
+  );
+
+  fastify.get(
+    '/:id',
+    {
+      schema: {
+        params: orderParamsSchema,
+        response: {
+          200: orderResponseSchema,
+        },
+      },
+    },
+    async (request) => service.findById(request.params.id),
   );
 
   fastify.post(

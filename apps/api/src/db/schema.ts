@@ -43,6 +43,9 @@ export const products = pgTable(
   },
   (table) => [
     uniqueIndex('products_sku_unique').on(table.sku),
+    index('products_price_idx').on(table.price),
+    index('products_created_at_id_idx').on(table.createdAt, table.id),
+    index('products_category_idx').on(table.category),
     check('products_price_positive', sql`${table.price} > 0`),
     check('products_stock_quantity_nonnegative', sql`${table.stockQuantity} >= 0`),
   ],

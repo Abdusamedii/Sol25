@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: sol25
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d sol25"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/sol25
+      HOST: 0.0.0.0
+      NODE_ENV: test
+      PORT: 3000
+      WEB_ORIGIN: http://localhost:5173
+      VITE_API_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm --filter @sol25/shared build
+
+      - run: pnpm db:migrate
+
+      - run: psql "$DATABASE_URL" -c "CREATE DATABASE sol25_test"
+
+      - run: DATABASE_URL=postgres://postgres:postgres@localhost:5432/sol25_test pnpm db:migrate
+
+      - run: pnpm check
+
+      - run: pnpm test

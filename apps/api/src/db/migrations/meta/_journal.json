@@ -15,6 +15,13 @@
       "when": 1781350707321,
       "tag": "0001_safe_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781352000000,
+      "tag": "0002_product_search_indexes",
+      "breakpoints": true
     }
   ]
 }

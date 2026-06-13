@@ -1,7 +1,15 @@
 import { z } from 'zod';
-import { createProductSchema, productIdParamsSchema, productSchema, updateProductSchema } from '@sol25/shared';
+import {
+  createProductSchema,
+  paginatedProductsSchema,
+  productIdParamsSchema,
+  productListQuerySchema,
+  productSchema,
+  updateProductSchema,
+} from '@sol25/shared';
 
-export const productListResponseSchema = z.array(productSchema);
+export const productListQueryParamsSchema = productListQuerySchema;
+export const productListResponseSchema = paginatedProductsSchema;
 export const productResponseSchema = productSchema;
 export const createProductBodySchema = createProductSchema;
 export const updateProductBodySchema = updateProductSchema;

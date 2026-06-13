@@ -1,208 +1,43 @@
-:root {
-  color: #172033;
-  background: #f6f7fb;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+@import "tailwindcss";
+
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #111827;
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-secondary: #10b981;
+  --color-secondary-hover: #059669;
+  --color-accent: #f59e0b;
+  --color-muted: #f3f4f6;
+  --color-muted-foreground: #6b7280;
+  --color-border: #e5e7eb;
+  --color-error: #dc2626;
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-button,
-input {
-  font: inherit;
-}
-
-.app-shell {
-  width: min(1120px, calc(100% - 32px));
-  margin: 0 auto;
-  padding: 32px 0;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 32px;
-}
-
-.app-header h1,
-.panel h2,
-.product-card h3 {
-  margin: 0;
-}
-
-.app-header nav {
-  display: flex;
-  gap: 12px;
-}
-
-.app-header nav a,
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 999px;
-  background: #172033;
-  color: #fff;
-  cursor: pointer;
-  font-weight: 700;
-  padding: 10px 16px;
-}
-
-.app-header nav a {
-  background: #e7eaf3;
-  color: #172033;
-}
-
-.app-header nav a.active-link {
-  background: #172033;
-  color: #fff;
-}
-
-.button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-.panel {
-  border: 1px solid #e5e8f0;
-  border-radius: 24px;
-  background: #fff;
-  box-shadow: 0 20px 60px rgb(23 32 51 / 8%);
-  padding: 24px;
-}
-
-.panel-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #667085;
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.product-card,
-.order-row,
-.line-item,
-.empty-state {
-  border: 1px solid #e5e8f0;
-  border-radius: 18px;
-  background: #fbfcff;
-  padding: 16px;
-}
-
-.product-card {
-  display: grid;
-  gap: 18px;
-}
-
-.product-image {
-  width: 100%;
-  height: 160px;
-  object-fit: cover;
-  border-radius: 12px;
-}
-
-.link-button {
-  border: 0;
-  background: transparent;
-  color: #172033;
-  cursor: pointer;
-  font-weight: 700;
-  padding: 10px 16px;
-}
-
-.product-card p,
-.product-card dl,
-.product-card dd {
-  margin: 0;
-}
-
-.product-card dl {
-  display: grid;
-  gap: 10px;
-}
-
-.product-card dt,
-.order-row small,
-.line-item small {
-  color: #667085;
-  display: block;
-  font-size: 0.86rem;
-}
-
-.order-form,
-.line-items {
-  display: grid;
-  gap: 12px;
-}
-
-.order-row,
-.line-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.order-row input {
-  width: 96px;
-  border: 1px solid #ccd2e0;
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.confirmation-total {
-  color: #0f766e;
-  font-size: 1.4rem;
-  font-weight: 800;
-}
-
-.error {
-  color: #b42318;
-}
-
-@media (max-width: 720px) {
-  .app-header,
-  .panel-heading,
-  .order-row,
-  .line-item {
-    align-items: stretch;
-    flex-direction: column;
+@layer base {
+  :root {
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
   }
 
-  .app-header nav {
-    flex-wrap: wrap;
+  body {
+    @apply m-0 min-w-80 min-h-screen bg-muted font-sans text-foreground antialiased;
+  }
+
+  a {
+    @apply text-inherit no-underline;
+  }
+
+  button,
+  input,
+  select {
+    @apply font-[inherit];
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply font-bold tracking-tight;
   }
 }

@@ -51,6 +51,22 @@ export class OrdersService {
     return toOrders(rows);
   }
 
+  async findById(id: string) {
+    const rows = await this.ordersRepository.findWithItems(id);
+
+    if (rows.length === 0) {
+      throw new NotFoundError('Order not found');
+    }
+
+    const [order] = toOrders(rows);
+
+    if (!order) {
+      throw new NotFoundError('Order not found');
+    }
+
+    return order;
+  }
+
   async create(input: CreateOrderInput) {
     const requestedByProductId = new Map<string, number>();
 

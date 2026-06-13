@@ -1,35 +1,56 @@
 import type { User } from '@sol25/shared';
 
-const STORAGE_KEY = 'sol25:user';
+const USER_STORAGE_KEY = 'sol25:user';
+const TOKEN_STORAGE_KEY = 'sol25:token';
 const listeners = new Set<() => void>();
 
-function readInitial(): User | null {
+function readInitialUser(): User | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(USER_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as User) : null;
   } catch {
     return null;
   }
 }
 
-let current: User | null = readInitial();
-
-export function getCurrentUser(): User | null {
-  return current;
+function readInitialToken(): string | null {
+  return localStorage.getItem(TOKEN_STORAGE_KEY);
 }
 
-export function setCurrentUser(user: User | null) {
-  current = user;
+let currentUser: User | null = readInitialUser();
+let currentToken: string | null = readInitialToken();
 
-  if (user) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+export function getCurrentUser(): User | null {
+  return currentUser;
+}
+
+export function getAuthToken(): string | null {
+  return currentToken;
+}
+
+export function isAdmin(user: User | null = currentUser): boolean {
+  return user?.role === 'admin';
+}
+
+export function setAuthSession(user: User | null, token: string | null) {
+  currentUser = user;
+  currentToken = token;
+
+  if (user && token) {
+    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    localStorage.setItem(TOKEN_STORAGE_KEY, token);
   } else {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
   }
 
   for (const listener of listeners) {
     listener();
   }
+}
+
+export function setCurrentUser(user: User | null) {
+  setAuthSession(user, user ? currentToken : null);
 }
 
 export function subscribe(listener: () => void) {

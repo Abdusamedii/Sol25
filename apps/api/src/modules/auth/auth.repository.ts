@@ -18,6 +18,12 @@ export class AuthRepository {
     });
   }
 
+  findById(id: string) {
+    return this.db.query.users.findFirst({
+      where: eq(users.id, id),
+    });
+  }
+
   async create(data: CreateUserData) {
     const [user] = await this.db.insert(users).values(data).returning();
     return user;

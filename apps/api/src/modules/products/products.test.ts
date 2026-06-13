@@ -1,9 +1,11 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app.js';
+import { authHeader, createAdmin } from '../../test/auth.js';
 
 describe('products', () => {
   let app: FastifyInstance;
+  let adminToken: string;
 
   beforeAll(async () => {
     app = await buildApp();
@@ -11,6 +13,8 @@ describe('products', () => {
 
   beforeEach(async () => {
     await app.dbClient`TRUNCATE order_items, orders, products, users RESTART IDENTITY CASCADE`;
+    const admin = await createAdmin(app);
+    adminToken = admin.token;
   });
 
   afterAll(async () => {
@@ -21,6 +25,7 @@ describe('products', () => {
     const createResponse = await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Coffee Beans',
         sku: 'COFFEE-1',
@@ -60,6 +65,7 @@ describe('products', () => {
       await app.inject({
         method: 'POST',
         url: '/products',
+        headers: authHeader(adminToken),
         payload: {
           name: `Product ${index}`,
           sku: `SKU-PAGE-${index}`,
@@ -115,6 +121,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Ergonomic Office Chair',
         sku: 'CHAIR-ERG-01',
@@ -127,6 +134,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Stainless Steel Kettle',
         sku: 'KETTLE-SS-02',
@@ -159,6 +167,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Budget Blender',
         sku: 'BLEND-01',
@@ -171,6 +180,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Premium Blender',
         sku: 'BLEND-02',
@@ -183,6 +193,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Running Shoes',
         sku: 'SHOE-01',
@@ -206,6 +217,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'Low Price Item',
         sku: 'LOW-01',
@@ -218,6 +230,7 @@ describe('products', () => {
     await app.inject({
       method: 'POST',
       url: '/products',
+      headers: authHeader(adminToken),
       payload: {
         name: 'High Price Item',
         sku: 'HIGH-01',

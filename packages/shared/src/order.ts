@@ -10,7 +10,6 @@ export const createOrderItemSchema = z.object({
 });
 
 export const createOrderSchema = z.object({
-  userId: z.string().uuid(),
   items: z.array(createOrderItemSchema).min(1),
 });
 

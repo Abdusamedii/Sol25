@@ -18,8 +18,8 @@ function SigninPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await signin.mutateAsync({ username, password });
-    await navigate({ to: '/' });
+    const session = await signin.mutateAsync({ username, password });
+    await navigate({ to: session.user.role === 'admin' ? '/admin' : '/' });
   }
 
   return (

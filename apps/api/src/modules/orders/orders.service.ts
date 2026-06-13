@@ -104,7 +104,7 @@ export class OrdersService {
     return order;
   }
 
-  async create(input: CreateOrderInput) {
+  async create(userId: string, input: CreateOrderInput) {
     const requestedByProductId = new Map<string, number>();
 
     for (const item of input.items) {
@@ -115,7 +115,7 @@ export class OrdersService {
 
     return this.db.transaction(async (tx) => {
       const user = await tx.query.users.findFirst({
-        where: eq(users.id, input.userId),
+        where: eq(users.id, userId),
       });
 
       if (!user) {
@@ -150,7 +150,7 @@ export class OrdersService {
       const [order] = await tx
         .insert(orders)
         .values({
-          userId: input.userId,
+          userId,
           total: orderTotal,
           status: 'pending_payment',
         })

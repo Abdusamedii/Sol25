@@ -1,4 +1,5 @@
 import type {
+  AuthResponse,
   CreateOrderInput,
   CreatePaymentInput,
   CreateProductInput,
@@ -12,6 +13,7 @@ import type {
   UpdateProductInput,
   User,
 } from '@sol25/shared';
+import { getAuthToken } from '../lib/auth';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
 
@@ -33,13 +35,26 @@ export class PaymentDeclinedError extends Error {
   }
 }
 
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
+    ...init,
     headers: {
-      'Content-Type': 'application/json',
+      ...authHeaders(),
       ...init?.headers,
     },
-    ...init,
   });
 
   if (!response.ok) {
@@ -83,6 +98,10 @@ export function fetchProducts(query: ProductListQueryInput) {
   return request<PaginatedProducts>(`/products?${params}`);
 }
 
+export function fetchOrders() {
+  return request<Order[]>('/orders');
+}
+
 export function createProduct(input: CreateProductInput) {
   return request<Product>('/products', {
     method: 'POST',
@@ -94,6 +113,12 @@ export function updateProduct(id: string, input: UpdateProductInput) {
   return request<Product>(`/products/${id}`, {
     method: 'PUT',
     body: JSON.stringify(input),
+  });
+}
+
+export function deleteProduct(id: string) {
+  return request<Product>(`/products/${id}`, {
+    method: 'DELETE',
   });
 }
 
@@ -111,9 +136,7 @@ export function fetchOrder(orderId: string) {
 export async function payOrder(orderId: string, input: CreatePaymentInput) {
   const response = await fetch(`${API_URL}/orders/${orderId}/payments`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: authHeaders(),
     body: JSON.stringify(input),
   });
 
@@ -136,15 +159,19 @@ export async function payOrder(orderId: string, input: CreatePaymentInput) {
 }
 
 export function signin(input: SigninInput) {
-  return request<User>('/auth/signin', {
+  return request<AuthResponse>('/auth/signin', {
     method: 'POST',
     body: JSON.stringify(input),
   });
 }
 
 export function signup(input: SignupInput) {
-  return request<User>('/auth/signup', {
+  return request<AuthResponse>('/auth/signup', {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function fetchMe() {
+  return request<User>('/auth/me');
 }

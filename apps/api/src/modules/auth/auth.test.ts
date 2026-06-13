@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app.js';
+import { authHeader, createCustomer } from '../../test/auth.js';
 
 describe('auth', () => {
   let app: FastifyInstance;
@@ -29,8 +30,11 @@ describe('auth', () => {
 
     expect(signupResponse.statusCode).toBe(201);
     expect(signupResponse.json()).toMatchObject({
-      username: 'alice',
-      role: 'customer',
+      user: {
+        username: 'alice',
+        role: 'customer',
+      },
+      token: expect.any(String),
     });
 
     const signinResponse = await app.inject({
@@ -44,7 +48,26 @@ describe('auth', () => {
 
     expect(signinResponse.statusCode).toBe(200);
     expect(signinResponse.json()).toMatchObject({
-      username: 'alice',
+      user: {
+        username: 'alice',
+        role: 'customer',
+      },
+      token: expect.any(String),
+    });
+  });
+
+  it('returns the current user from /auth/me', async () => {
+    const customer = await createCustomer(app, 'me-user');
+
+    const meResponse = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: authHeader(customer.token),
+    });
+
+    expect(meResponse.statusCode).toBe(200);
+    expect(meResponse.json()).toMatchObject({
+      username: 'me-user',
       role: 'customer',
     });
   });

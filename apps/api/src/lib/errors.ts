@@ -43,6 +43,12 @@ export class PaymentDeclinedError extends AppError {
   }
 }
 
+export class ForbiddenError extends AppError {
+  constructor(message: string) {
+    super(403, 'FORBIDDEN', message);
+  }
+}
+
 export function formatError(error: FastifyError | AppError, request: FastifyRequest, reply: FastifyReply) {
   if (error instanceof AppError) {
     return reply.status(error.statusCode).send({

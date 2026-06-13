@@ -27,7 +27,7 @@ export class AuthService {
     const row = await this.authRepository.create({
       username: input.username,
       passwordHash: hashPassword(input.password),
-      role: input.role ?? 'customer',
+      role: 'customer',
     });
 
     if (!row) {
@@ -42,6 +42,16 @@ export class AuthService {
 
     if (!row || !verifyPassword(input.password, row.passwordHash)) {
       throw new UnauthorizedError('Invalid username or password');
+    }
+
+    return toUser(row);
+  }
+
+  async findById(id: string) {
+    const row = await this.authRepository.findById(id);
+
+    if (!row) {
+      throw new UnauthorizedError('User not found');
     }
 
     return toUser(row);

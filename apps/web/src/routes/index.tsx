@@ -2,7 +2,7 @@ import { productListQuerySchema } from '@sol25/shared';
 import type { ProductListQueryInput } from '@sol25/shared';
 import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useState } from 'react';
-import { ProductFilters } from '../components/ProductFilters';
+import { ProductFilters, ProductSearch } from '../components/ProductFilters';
 import { ProductResults } from '../components/ProductResults';
 
 export const Route = createFileRoute('/')({
@@ -130,30 +130,24 @@ function ProductListPage() {
     urlSearch.sortOrder !== 'asc';
 
   return (
-    <div className="grid gap-8">
-      <section className="rounded-lg bg-background p-6 sm:p-8">
-        <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Catalog</p>
-        <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Available stock</h1>
-        <p className="mt-2 max-w-xl text-muted-foreground">
-          Browse inventory, filter by category and price, and add items to your cart.
-        </p>
-      </section>
+    <div className="grid gap-6">
+      <ProductSearch searchInput={searchInput} onSearchChange={setSearchInput} />
 
-      <ProductFilters
-        searchInput={searchInput}
-        urlSearch={urlSearch}
-        hasActiveFilters={hasActiveFilters}
-        onSearchChange={setSearchInput}
-        onUpdateSearch={updateSearch}
-        onClearFilters={clearFilters}
-      />
+      <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
+        <ProductFilters
+          urlSearch={urlSearch}
+          hasActiveFilters={hasActiveFilters}
+          onUpdateSearch={updateSearch}
+          onClearFilters={clearFilters}
+        />
 
-      <ProductResults
-        hasActiveFilters={hasActiveFilters}
-        page={urlSearch.page}
-        query={productQuery}
-        onPageChange={(page) => updateSearch({ page })}
-      />
+        <ProductResults
+          hasActiveFilters={hasActiveFilters}
+          page={urlSearch.page}
+          query={productQuery}
+          onPageChange={(page) => updateSearch({ page })}
+        />
+      </div>
     </div>
   );
 }

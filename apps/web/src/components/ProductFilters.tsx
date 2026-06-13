@@ -5,66 +5,70 @@ import { Button } from './ui/Button';
 import { Field, Input, Select } from './ui/Input';
 
 type ProductFiltersProps = {
-  searchInput: string;
   urlSearch: ProductListQueryInput;
   hasActiveFilters: boolean;
-  onSearchChange: (value: string) => void;
   onUpdateSearch: (next: Partial<ProductListQueryInput>) => void;
   onClearFilters: () => void;
 };
 
+type ProductSearchProps = {
+  searchInput: string;
+  onSearchChange: (value: string) => void;
+};
+
+export function ProductSearch({ searchInput, onSearchChange }: ProductSearchProps) {
+  return (
+    <div className="rounded-lg bg-primary p-6 sm:p-8">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="flex h-12 w-12 items-center justify-center rounded-md bg-white text-primary">
+          <Search className="h-5 w-5" strokeWidth={2.5} />
+        </span>
+        <div>
+          <p className="text-xs font-semibold tracking-wider text-white/80 uppercase">Find products</p>
+          <p className="text-xl font-extrabold tracking-tight text-white">Search inventory</p>
+        </div>
+      </div>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
+        <input
+          className="h-14 w-full rounded-md border-0 bg-white pr-4 pl-12 text-foreground transition-all duration-200 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent"
+          placeholder="Search by name or SKU..."
+          type="search"
+          value={searchInput}
+          onChange={(event) => onSearchChange(event.target.value)}
+        />
+      </div>
+    </div>
+  );
+}
+
 export function ProductFilters({
-  searchInput,
   urlSearch,
   hasActiveFilters,
-  onSearchChange,
   onUpdateSearch,
   onClearFilters,
 }: ProductFiltersProps) {
   return (
-    <div className="grid gap-4">
-      <div className="rounded-lg bg-primary p-6 sm:p-8">
-        <div className="mb-4 flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-md bg-white text-primary">
-            <Search className="h-5 w-5" strokeWidth={2.5} />
+    <div className="h-fit rounded-lg bg-background p-6 sm:p-8 lg:sticky lg:top-28">
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 items-center justify-center rounded-md bg-muted text-foreground">
+            <Filter className="h-5 w-5" strokeWidth={2.5} />
           </span>
           <div>
-            <p className="text-xs font-semibold tracking-wider text-white/80 uppercase">Find products</p>
-            <p className="text-xl font-extrabold tracking-tight text-white">Search inventory</p>
+            <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Refine</p>
+            <p className="text-xl font-extrabold tracking-tight">Filters & sorting</p>
           </div>
         </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            className="h-14 w-full rounded-md border-0 bg-white pr-4 pl-12 text-foreground transition-all duration-200 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent"
-            placeholder="Search by name or SKU..."
-            type="search"
-            value={searchInput}
-            onChange={(event) => onSearchChange(event.target.value)}
-          />
-        </div>
+        {hasActiveFilters ? (
+          <Button variant="outline" type="button" className="h-12 px-4" onClick={onClearFilters}>
+            <X className="h-4 w-4" />
+            Clear
+          </Button>
+        ) : null}
       </div>
 
-      <div className="rounded-lg bg-background p-6 sm:p-8">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-12 w-12 items-center justify-center rounded-md bg-muted text-foreground">
-              <Filter className="h-5 w-5" strokeWidth={2.5} />
-            </span>
-            <div>
-              <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Refine</p>
-              <p className="text-xl font-extrabold tracking-tight">Filters & sorting</p>
-            </div>
-          </div>
-          {hasActiveFilters ? (
-            <Button variant="outline" type="button" className="h-12 px-4" onClick={onClearFilters}>
-              <X className="h-4 w-4" />
-              Clear
-            </Button>
-          ) : null}
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4">
           <Field label="Category">
             <Select
               value={urlSearch.category ?? ''}
@@ -147,7 +151,6 @@ export function ProductFilters({
               <option value="desc">Descending</option>
             </Select>
           </Field>
-        </div>
       </div>
     </div>
   );

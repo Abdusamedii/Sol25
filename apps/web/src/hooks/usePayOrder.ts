@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { payOrder } from '../api/client';
-import { orderKeys } from './useOrder';
+import { orderKeys } from './useOrders';
 import { productKeys } from './useProducts';
 
 export function usePayOrder() {

@@ -38,7 +38,6 @@ export function CartView() {
 
     try {
       const order = await createOrder.mutateAsync({
-        userId: currentUser.id,
         items: cart.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,

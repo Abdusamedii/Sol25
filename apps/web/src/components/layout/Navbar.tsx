@@ -1,9 +1,9 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Package, ShoppingCart, LogIn, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, ShoppingCart, LogIn, LogOut } from 'lucide-react';
 import { memo } from 'react';
 import { useCart } from '../../hooks/useCart';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { setCurrentUser } from '../../lib/auth';
+import { setAuthSession } from '../../lib/auth';
 
 const navLinkBase =
   'inline-flex h-12 items-center gap-2 rounded-md px-4 text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2';
@@ -17,7 +17,7 @@ export const Navbar = memo(function Navbar() {
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   async function handleSignOut() {
-    setCurrentUser(null);
+    setAuthSession(null, null);
     await navigate({ to: '/' });
   }
 
@@ -57,6 +57,17 @@ export const Navbar = memo(function Navbar() {
               </span>
             ) : null}
           </Link>
+
+          {currentUser?.role === 'admin' ? (
+            <Link
+              to="/admin"
+              activeProps={{ className: navLinkActive }}
+              inactiveProps={{ className: navLinkInactive }}
+            >
+              <LayoutDashboard className="h-4 w-4" strokeWidth={2.5} />
+              <span className="hidden sm:inline">Dashboard</span>
+            </Link>
+          ) : null}
 
           {currentUser ? (
             <button

@@ -1,31 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../../app.js';
+import { authHeader, createAdmin, createCustomer } from '../../test/auth.js';
 
-async function createProduct(app: FastifyInstance, sku: string, stockQuantity: number) {
+async function createProduct(app: FastifyInstance, adminToken: string, sku: string, stockQuantity: number) {
   const response = await app.inject({
     method: 'POST',
     url: '/products',
+    headers: authHeader(adminToken),
     payload: {
       name: sku,
       sku,
       price: 10,
       stockQuantity,
       category: 'Test',
-    },
-  });
-
-  return response.json<{ id: string }>();
-}
-
-async function createCustomer(app: FastifyInstance, username: string) {
-  const response = await app.inject({
-    method: 'POST',
-    url: '/auth/signup',
-    payload: {
-      username,
-      password: 'password',
-      role: 'customer',
     },
   });
 
@@ -47,15 +35,16 @@ describe('orders', () => {
     await app.close();
   });
 
-  it('decrements stock and persists the order total', async () => {
-    const product = await createProduct(app, 'LOCKED-STOCK-1', 3);
+  it('decrements stock after successful payment', async () => {
+    const admin = await createAdmin(app);
+    const product = await createProduct(app, admin.token, 'LOCKED-STOCK-1', 3);
     const customer = await createCustomer(app, 'buyer-1');
 
     const orderResponse = await app.inject({
       method: 'POST',
       url: '/orders',
+      headers: authHeader(customer.token),
       payload: {
-        userId: customer.id,
         items: [
           {
             productId: product.id,
@@ -68,6 +57,7 @@ describe('orders', () => {
     expect(orderResponse.statusCode).toBe(201);
     expect(orderResponse.json()).toMatchObject({
       total: 20,
+      status: 'pending_payment',
       items: [
         {
           productId: product.id,
@@ -77,6 +67,28 @@ describe('orders', () => {
         },
       ],
     });
+
+    const unpaidProductResponse = await app.inject({
+      method: 'GET',
+      url: `/products/${product.id}`,
+    });
+
+    expect(unpaidProductResponse.json()).toMatchObject({
+      stockQuantity: 3,
+    });
+
+    const order = orderResponse.json<{ id: string }>();
+
+    const paymentResponse = await app.inject({
+      method: 'POST',
+      url: `/orders/${order.id}/payments`,
+      headers: authHeader(customer.token),
+      payload: {
+        cardNumber: '1111 1111 1111 1111',
+      },
+    });
+
+    expect(paymentResponse.statusCode).toBe(201);
 
     const productResponse = await app.inject({
       method: 'GET',
@@ -89,14 +101,15 @@ describe('orders', () => {
   });
 
   it('rejects an order that exceeds available stock', async () => {
-    const product = await createProduct(app, 'LOCKED-STOCK-2', 1);
+    const admin = await createAdmin(app);
+    const product = await createProduct(app, admin.token, 'LOCKED-STOCK-2', 1);
     const customer = await createCustomer(app, 'buyer-2');
 
     const orderResponse = await app.inject({
       method: 'POST',
       url: '/orders',
+      headers: authHeader(customer.token),
       payload: {
-        userId: customer.id,
         items: [
           {
             productId: product.id,

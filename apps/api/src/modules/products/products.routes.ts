@@ -12,6 +12,7 @@ import { ProductsService } from './products.service.js';
 
 export const productsRoutes: FastifyPluginAsyncZod = async (fastify) => {
   const service = new ProductsService(new ProductsRepository(fastify.db));
+  const requireAdmin = fastify.authorize('admin');
 
   fastify.get(
     '/',
@@ -42,6 +43,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.post(
     '/',
     {
+      preHandler: [requireAdmin],
       schema: {
         body: createProductBodySchema,
         response: {
@@ -55,6 +57,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.put(
     '/:id',
     {
+      preHandler: [requireAdmin],
       schema: {
         params: productParamsSchema,
         body: updateProductBodySchema,
@@ -69,6 +72,7 @@ export const productsRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.delete(
     '/:id',
     {
+      preHandler: [requireAdmin],
       schema: {
         params: productParamsSchema,
         response: {

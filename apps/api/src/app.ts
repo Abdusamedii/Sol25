@@ -8,6 +8,7 @@ import { ordersRoutes } from './modules/orders/orders.routes.js';
 import { productsRoutes } from './modules/products/products.routes.js';
 import { corsPlugin } from './plugins/cors.js';
 import { dbPlugin } from './plugins/db.js';
+import { authPlugin } from './plugins/auth.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -20,6 +21,7 @@ export async function buildApp() {
 
   await app.register(corsPlugin);
   await app.register(dbPlugin);
+  await app.register(authPlugin);
 
   app.get(
     '/health',

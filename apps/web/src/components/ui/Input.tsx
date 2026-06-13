@@ -4,12 +4,13 @@ type FieldProps = {
   label: string;
   children: ReactNode;
   className?: string;
+  labelClassName?: string;
 };
 
-export function Field({ label, children, className = '' }: FieldProps) {
+export function Field({ label, children, className = '', labelClassName = 'text-muted-foreground' }: FieldProps) {
   return (
     <label className={`grid gap-2 ${className}`}>
-      <span className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">{label}</span>
+      <span className={`text-xs font-semibold tracking-wider uppercase ${labelClassName}`}>{label}</span>
       {children}
     </label>
   );
